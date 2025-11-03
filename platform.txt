@@ -17,7 +17,7 @@ compiler.warning_flags.all=-Wall -Wextra
 
 compiler.path={build.compiler_path}
 compiler.c.cmd={build.crossprefix}gcc
-compiler.c.flags=-g -c {compiler.define} {compiler.warning_flags} {compiler.zephyr.macros} "@{compiler.zephyr.cflags_file}" -MMD -mcpu={build.mcu} {build.float-abi} {build.fpu}
+compiler.c.flags=-g -c {compiler.define} {compiler.warning_flags} {compiler.zephyr.macros} "@{compiler.zephyr.cflags_file}" -fdata-sections -ffunction-sections -MMD -mcpu={build.mcu} {build.float-abi} {build.fpu}
 compiler.c.elf.cmd={build.crossprefix}g++
 compiler.c.elf.flags=-Wl,--gc-sections -mcpu={build.mcu} {build.float-abi} {build.fpu} -std=gnu++17
 compiler.S.cmd={build.crossprefix}g++
@@ -59,7 +59,6 @@ build.link_command="{compiler.path}{compiler.c.elf.cmd}" "-L{build.path}" "-L{bu
 build.check_command-dynamic={build.link_command} {build.link_args.check-dynamic} -o "{build.path}/{build.project_name}_check.tmp"
 build.check_command-static=true
 build.check_command-static.windows=cmd /C cd .
-build.combine_command={build.link_command} {build.link_args.build-{build.link_mode}} {build.link_args.build-common}
 
 # link_args.* are included by any link_command depending on the link_mode
 build.link_args.dynamic=-e main
@@ -119,10 +118,15 @@ recipe.S.o.pattern="{compiler.path}{compiler.S.cmd}" {compiler.S.flags} -DARDUIN
 ## Create archives
 recipe.ar.pattern="{compiler.path}{compiler.ar.cmd}" {compiler.ar.flags} {compiler.ar.extra_flags} "{archive_file_path}" "{object_file}"
 
-## Combine gc-sections, archives, and objects
+## Combine gc-sections, archives, and objects - Multi-pass linking
 recipe.c.combine.1.pattern={build.check_command-{build.link_mode}}
-recipe.c.combine.2.pattern={build.combine_command}
-recipe.c.combine.pattern={build.combine_command}
+recipe.c.combine.2.pattern={build.link_command} {build.link_args.build-{build.link_mode}} "-Wl,-Map,{build.path}/{build.project_name}_temp.map" -o "{build.path}/{build.project_name}_temp.elf"
+recipe.c.combine.3.pattern="{runtime.tools.gen-rodata-ld.path}/gen-rodata-ld" "{build.path}/{build.project_name}_temp.elf" "{build.path}/rodata_split.ld" "{build.link_mode}"
+recipe.c.combine.4.pattern={build.link_command} "-T{build.path}/rodata_split.ld" {build.link_args.build-{build.link_mode}} {build.link_args.build-common}
+
+## Combine gc-sections, archives, and objects - Single-pass linking (older IDEs)
+recipe.c.combine.pattern={build.link_command} {build.link_args.build-{build.link_mode}} {build.link_args.build-common}
+
 recipe.hooks.linking.postlink.1.pattern="{compiler.path}{build.crossprefix}strip" --strip-debug "{build.path}/{build.project_name}_debug.elf" -o "{build.path}/{build.project_name}.elf"
 
 ## Create eeprom
