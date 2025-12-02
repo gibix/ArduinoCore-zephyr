@@ -337,8 +337,8 @@ qspi_flash: &mx25l12833f {};
 				    <&gpiok 6 0>,		/* LEDG */
 				    <&gpiok 7 0>;		/* LEDB */
 
-		builtin-led-gpios = <&gpiok 5 0>,
-				    <&gpiok 6 0>,
+		builtin-led-gpios = <&gpiok 6 0>,
+				    <&gpiok 5 0>,
 				    <&gpiok 7 0>;
 
 		pwm-pin-gpios =	<&gpioa 8 0>,
@@ -387,4 +387,27 @@ qspi_flash: &mx25l12833f {};
 			      <&adc1 12>, /* Hack for D19 */
 			      <&adc1 13>; /* Hack for D20 */
 	};
+};
+
+/ {
+    zephyr,user {
+        /* Override builtin LED GPIO to point to the green LED */
+        builtin_led_gpios = <&gpiok 6 0>;  /* Pin 6 on GPIOK, active low */
+    };
+
+    leds {
+        compatible = "gpio-leds";
+        
+        red_led: led_0 {
+            gpios = <&gpiok 5 GPIO_ACTIVE_LOW>;  /* Red LED on GPIO pin 5, active-low */
+        };
+
+        green_led: led_1 {
+            gpios = <&gpiok 6 GPIO_ACTIVE_LOW>;  /* Green LED on GPIO pin 6, active-low */
+        };
+
+        blue_led: led_2 {
+            gpios = <&gpiok 7 GPIO_ACTIVE_LOW>;  /* Blue LED on GPIO pin 7, active-low */
+        };
+    };
 };
