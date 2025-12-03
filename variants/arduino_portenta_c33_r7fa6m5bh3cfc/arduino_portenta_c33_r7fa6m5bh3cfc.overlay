@@ -302,29 +302,3 @@
 /* Include common flash filesystem configuration */
 qspi_flash: &at25sf128a {};
 #include "../common/arduino_flash_fs.dtsi"
-
-/ {
-    zephyr,user {
-        /* Override builtin LED GPIO to point to the green LED (led2) */
-        builtin_led_gpios = <&ioport4 0 0>;  /* GPIO pin 0 on ioport4 (green LED) */
-    };
-
-	leds {
-		compatible = "gpio-leds";
-
-		led1: led1 {
-			gpios = <&ioport1 7 GPIO_ACTIVE_LOW>; /* Red LED on GPIO pin 7 of ioport1, active-low */
-			label = "LEDR"; /* Label changed to Red LED */
-		};
-
-		led2: led2 {
-			gpios = <&ioport4 0 GPIO_ACTIVE_LOW>; /* Green LED on GPIO pin 0 of ioport4, active-low */
-			label = "LEDG"; /* Label changed to Green LED */
-		};
-
-		led3: led3 {
-			gpios = <&ioport8 0 GPIO_ACTIVE_LOW>; /* Blue LED on GPIO pin 0 of ioport8, active-low */
-			label = "LEDB"; /* Label changed to Blue LED */
-		};
-	};
-};
