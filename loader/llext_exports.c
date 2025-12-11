@@ -12,6 +12,21 @@
        extern void name(void); \
        EXPORT_SYMBOL(name);
 
+FORCE_EXPORT_SYM(llext_iterate);
+FORCE_EXPORT_SYM(llext_find_sym);
+FORCE_EXPORT_SYM(llext_call_fn);
+FORCE_EXPORT_SYM(llext_buf_read);
+FORCE_EXPORT_SYM(llext_buf_seek);
+FORCE_EXPORT_SYM(llext_buf_peek);
+FORCE_EXPORT_SYM(llext_load);
+
+EXPORT_SYMBOL(k_thread_runtime_stats_get);
+EXPORT_SYMBOL(k_thread_name_get);
+EXPORT_SYMBOL(k_thread_runtime_stats_all_get);
+EXPORT_SYMBOL(k_thread_foreach);
+EXPORT_SYMBOL(k_thread_stack_alloc);
+
+EXPORT_SYMBOL(char2hex);
 EXPORT_SYMBOL(strrchr);
 EXPORT_SYMBOL(strstr);
 EXPORT_SYMBOL(strncmp);
