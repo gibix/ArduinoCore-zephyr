@@ -339,6 +339,7 @@ qspi_flash: &mx25l12833f {};
 
 		builtin-led-gpios = <&gpiok 6 0>,
 				    <&gpiok 5 0>,
+				    <&gpiok 6 0>,
 				    <&gpiok 7 0>;
 
 		pwm-pin-gpios =	<&gpioa 8 0>,

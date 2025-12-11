@@ -269,6 +269,7 @@
 
 		builtin-led-gpios = <&ioport4 0 GPIO_ACTIVE_LOW>,
                         <&ioport1 7 GPIO_ACTIVE_LOW>,
+                        <&ioport4 0 GPIO_ACTIVE_LOW>,
                         <&ioport8 0 GPIO_ACTIVE_LOW>;
 
 		pwm-pin-gpios =	<&ioport6 0 0>;
