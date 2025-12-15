@@ -396,3 +396,37 @@ jobs:
         with:
           name: ArduinoCore-zephyr-${{ env.CORE_TAG }}-jsons
           path: ArduinoCore-*-${{ env.CORE_TAG }}.json
+
+  publish-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/gibix/llext-sketch-loader' && github.repository == 'gibix/ArduinoCore-zephyr' }}
+    needs:
+      - build-env
+      - package-core
+      - test-core
+    permissions:
+      contents: write
+    env:
+      CORE_HASH: ${{ needs.build-env.outputs.CORE_HASH }}
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          pattern: ArduinoCore-zephyr_unoq-*
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: rolling
+          name: Rolling Release
+          draft: false
+          prerelease: true
+          files: |
+            dist/*
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+          body: |
+            Automated rolling release from commit ${{ github.sha }}
+
+            Build hash: ${{ env.CORE_HASH }}
