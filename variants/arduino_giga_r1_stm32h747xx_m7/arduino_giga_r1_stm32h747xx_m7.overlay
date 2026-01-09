@@ -349,6 +349,7 @@
 /delete-node/ &slot0_partition;
 
 &flash0 {
+	bank2-flash-size = <1024>;
 	partitions {
 		slot0_partition: partition@40000 {
 			label = "image-0";
