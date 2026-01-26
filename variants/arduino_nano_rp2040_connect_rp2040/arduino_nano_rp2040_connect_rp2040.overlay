@@ -1,0 +1,390 @@
+/*
+ * Copyright (c) 2025 Arduino SA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/adc/adc.h>
+
+/ {
+	zephyr,user {
+		/*
+		 * Arduino Nano RP2040 Connect pin mapping
+		 * Arduino Pin -> RP2040 GPIO
+		 */
+		digital-pin-gpios = <&gpio0 1 0>,   /* D0  - RX */
+				    <&gpio0 0 0>,   /* D1  - TX */
+				    <&gpio0 25 0>,  /* D2 */
+				    <&gpio0 15 0>,  /* D3 */
+				    <&gpio0 16 0>,  /* D4 */
+				    <&gpio0 17 0>,  /* D5 */
+				    <&gpio0 18 0>,  /* D6 */
+				    <&gpio0 19 0>,  /* D7 */
+				    <&gpio0 20 0>,  /* D8 */
+				    <&gpio0 21 0>,  /* D9 */
+				    <&gpio0 5 0>,   /* D10 - SPI SS */
+				    <&gpio0 7 0>,   /* D11 - SPI MOSI */
+				    <&gpio0 4 0>,   /* D12 - SPI MISO */
+				    <&gpio0 6 0>,   /* D13 - SPI SCK / LED */
+				    <&gpio0 26 0>,  /* D14 / A0 */
+				    <&gpio0 27 0>,  /* D15 / A1 */
+				    <&gpio0 28 0>,  /* D16 / A2 */
+				    <&gpio0 29 0>,  /* D17 / A3 */
+				    <&gpio0 12 0>,  /* D18 / A4 / SDA */
+				    <&gpio0 13 0>,  /* D19 / A5 / SCL */
+				    <&gpio0 2 0>,   /* D20 - NINA GPIO0 */
+				    <&gpio0 24 0>,  /* D21 - IMU IRQ */
+				    <&gpio0 22 0>,  /* D22 - PDM DIN */
+				    <&gpio0 23 0>,  /* D23 - PDM CLK */
+				    <&gpio0 3 0>,   /* D24 - NINA RESET */
+				    <&gpio0 8 0>,   /* D25 - NINA SPI MISO */
+				    <&gpio0 9 0>,   /* D26 - NINA SPI CS */
+				    <&gpio0 10 0>,  /* D27 - NINA SPI ACK */
+				    <&gpio0 11 0>,  /* D28 - NINA SPI MOSI */
+				    <&gpio0 14 0>;  /* D29 - NINA SPI SCK */
+
+		builtin-led-gpios = <&gpio0 6 0>;  /* D13 = GPIO6 */
+
+		/*
+		 * PWM-capable pins on Arduino Nano RP2040 Connect
+		 * Listed by Arduino pin number with corresponding GPIO
+		 */
+		pwm-pin-gpios =     <&gpio0 25 0>,  /* D2  -> GPIO25 -> PWM4B */
+				    <&gpio0 15 0>,  /* D3  -> GPIO15 -> PWM7B */
+				    <&gpio0 16 0>,  /* D4  -> GPIO16 -> PWM0A */
+				    <&gpio0 17 0>,  /* D5  -> GPIO17 -> PWM0B */
+				    <&gpio0 18 0>,  /* D6  -> GPIO18 -> PWM1A */
+				    <&gpio0 19 0>,  /* D7  -> GPIO19 -> PWM1B */
+				    <&gpio0 20 0>,  /* D8  -> GPIO20 -> PWM2A */
+				    <&gpio0 21 0>,  /* D9  -> GPIO21 -> PWM2B */
+				    <&gpio0 5 0>,   /* D10 -> GPIO5  -> PWM2B */
+				    <&gpio0 7 0>,   /* D11 -> GPIO7  -> PWM3B */
+				    <&gpio0 4 0>,   /* D12 -> GPIO4  -> PWM2A */
+				    <&gpio0 6 0>;   /* D13 -> GPIO6  -> PWM3A (LED) */
+
+		adc-pin-gpios =     <&gpio0 26 0>,  /* A0 -> GPIO26 -> ADC0 */
+				    <&gpio0 27 0>,  /* A1 -> GPIO27 -> ADC1 */
+				    <&gpio0 28 0>,  /* A2 -> GPIO28 -> ADC2 */
+				    <&gpio0 29 0>;  /* A3 -> GPIO29 -> ADC3 */
+
+		pwms =  <&pwm 25 255 PWM_POLARITY_NORMAL>,  /* D2  GPIO25 */
+			<&pwm 15 255 PWM_POLARITY_NORMAL>,  /* D3  GPIO15 */
+			<&pwm 16 255 PWM_POLARITY_NORMAL>,  /* D4  GPIO16 */
+			<&pwm 17 255 PWM_POLARITY_NORMAL>,  /* D5  GPIO17 */
+			<&pwm 18 255 PWM_POLARITY_NORMAL>,  /* D6  GPIO18 */
+			<&pwm 19 255 PWM_POLARITY_NORMAL>,  /* D7  GPIO19 */
+			<&pwm 20 255 PWM_POLARITY_NORMAL>,  /* D8  GPIO20 */
+			<&pwm 21 255 PWM_POLARITY_NORMAL>,  /* D9  GPIO21 */
+			<&pwm 5 255 PWM_POLARITY_NORMAL>,   /* D10 GPIO5  */
+			<&pwm 7 255 PWM_POLARITY_NORMAL>,   /* D11 GPIO7  */
+			<&pwm 4 255 PWM_POLARITY_NORMAL>,   /* D12 GPIO4  */
+			<&pwm 6 255 PWM_POLARITY_NORMAL>;   /* D13 GPIO6  */
+
+		io-channels =   <&adc 0>,  /* A0 */
+				<&adc 1>,  /* A1 */
+				<&adc 2>,  /* A2 */
+				<&adc 3>;  /* A3 */
+
+		serials = <&board_cdc_acm_uart>, <&uart0>, <&uart1>;
+		cdc-acm = <&board_cdc_acm_uart>;
+		i2cs = <&i2c0>;
+		spis = <&spi0>, <&spi1>;
+	};
+};
+
+&pinctrl {
+	/*
+	 * PWM pin control
+	 * PWM slice assignment: GPIO / 2 (integer division)
+	 * PWM channel: A if GPIO even, B if GPIO odd
+	 */
+
+	/* D4 -> GPIO16 -> PWM0A */
+	pwm_ch0a_default: pwm_ch0a_default {
+		group1 {
+			pinmux = <PWM_0A_P16>;
+		};
+	};
+
+	/* D5 -> GPIO17 -> PWM0B */
+	pwm_ch0b_default: pwm_ch0b_default {
+		group1 {
+			pinmux = <PWM_0B_P17>;
+		};
+	};
+
+	/* D6 -> GPIO18 -> PWM1A */
+	pwm_ch1a_default: pwm_ch1a_default {
+		group1 {
+			pinmux = <PWM_1A_P18>;
+		};
+	};
+
+	/* D7 -> GPIO19 -> PWM1B */
+	pwm_ch1b_default: pwm_ch1b_default {
+		group1 {
+			pinmux = <PWM_1B_P19>;
+		};
+	};
+
+	/*
+	  * D8 -> GPIO20 -> PWM2A,
+	  * D12 -> GPIO4 -> PWM2A
+	*/
+	pwm_ch2a_default: pwm_ch2a_default {
+		group1 {
+			pinmux = <PWM_2A_P4>, <PWM_2A_P20>;
+		};
+	};
+
+	/* D9 -> GPIO21 -> PWM2B, D10 -> GPIO5 -> PWM2B */
+	pwm_ch2b_default: pwm_ch2b_default {
+		group1 {
+			pinmux = <PWM_2B_P5>, <PWM_2B_P21>;
+		};
+	};
+
+	/* D13/LED -> GPIO6 -> PWM3A */
+	pwm_ch3a_default: pwm_ch3a_default {
+		group1 {
+			pinmux = <PWM_3A_P6>;
+		};
+	};
+
+	/* D11 -> GPIO7 -> PWM3B */
+	pwm_ch3b_default: pwm_ch3b_default {
+		group1 {
+			pinmux = <PWM_3B_P7>;
+		};
+	};
+
+	/* D2 -> GPIO25 -> PWM4B */
+	pwm_ch4b_default: pwm_ch4b_default {
+		group1 {
+			pinmux = <PWM_4B_P25>;
+		};
+	};
+
+	/* D3 -> GPIO15 -> PWM7B */
+	pwm_ch7b_default: pwm_ch7b_default {
+		group1 {
+			pinmux = <PWM_7B_P15>;
+		};
+	};
+
+	/*
+	 * SPI0 pin control
+	 * MISO (D12) -> GPIO4
+	 * MOSI (D11) -> GPIO7
+	 * SCK  (D13) -> GPIO6
+	 * SS   (D10) -> GPIO5 (directly controlled)
+	 */
+	spi0_default: spi0_default {
+		group1 {
+			pinmux = <SPI0_TX_P7>;  /* MOSI -> GPIO7 */
+		};
+		group2 {
+			pinmux = <SPI0_RX_P4>;  /* MISO -> GPIO4 */
+			input-enable;
+		};
+		group3 {
+			pinmux = <SPI0_SCK_P6>; /* SCK -> GPIO6 */
+		};
+	};
+
+	/*
+	 * SPI1 pin control (NINA WiFi module)
+	 * MISO (D25) -> GPIO8
+	 * MOSI (D28) -> GPIO11
+	 * SCK  (D29) -> GPIO14
+	 * CS   (D26) -> GPIO9 (software controlled)
+	 */
+	spi1_default: spi1_default {
+		group1 {
+			pinmux = <SPI1_TX_P11>;  /* MOSI -> GPIO11 */
+		};
+		group2 {
+			pinmux = <SPI1_RX_P8>;   /* MISO -> GPIO8 */
+			input-enable;
+		};
+		group3 {
+			pinmux = <SPI1_SCK_P14>; /* SCK -> GPIO14 */
+		};
+	};
+
+	/*
+	 * I2C0 pin control
+	 * SDA (D18) -> GPIO12
+	 * SCL (D19) -> GPIO13
+	 */
+	i2c0_default: i2c0_default {
+		group1 {
+			pinmux = <I2C0_SDA_P12>, <I2C0_SCL_P13>;
+			input-enable;
+			input-schmitt-enable;
+		};
+	};
+
+	/*
+	 * UART0 pin control
+	 * RX (D0) -> GPIO1
+	 * TX (D1) -> GPIO0
+	 */
+	uart0_default: uart0_default {
+		group1 {
+			pinmux = <UART0_TX_P0>;
+		};
+		group2 {
+			pinmux = <UART0_RX_P1>;
+			input-enable;
+		};
+	};
+
+	/*
+	 * UART1 pin control (NINA WiFi module)
+	 * TX  (D25) -> GPIO8
+	 * RX  (D26) -> GPIO9
+	 * CTS (D27) -> GPIO10
+	 * RTS (D28) -> GPIO11
+	 */
+	uart1_default: uart1_default {
+		group1 {
+			pinmux = <UART1_TX_P8>;
+		};
+		group2 {
+			pinmux = <UART1_RX_P9>;
+			input-enable;
+		};
+		group3 {
+			pinmux = <UART1_CTS_P10>;
+			input-enable;
+		};
+		group4 {
+			pinmux = <UART1_RTS_P11>;
+		};
+	};
+};
+
+&pwm {
+	status = "okay";
+	divider-frac-4 = <15>;
+	divider-int-4 = <255>;
+};
+
+&adc {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/* A0 -> GPIO26 -> ADC0 */
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+
+	/* A1 -> GPIO27 -> ADC1 */
+	channel@1 {
+		reg = <1>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+
+	/* A2 -> GPIO28 -> ADC2 */
+	channel@2 {
+		reg = <2>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+
+	/* A3 -> GPIO29 -> ADC3 */
+	channel@3 {
+		reg = <3>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
+};
+
+/*
+ * SPI0 configuration
+ * MISO (D12) -> GPIO4
+ * MOSI (D11) -> GPIO7
+ * SCK  (D13) -> GPIO6
+ */
+&spi0 {
+	status = "okay";
+	pinctrl-0 = <&spi0_default>;
+	pinctrl-names = "default";
+};
+
+/*
+ * SPI1 configuration (NINA WiFi module)
+ * MISO (D25) -> GPIO8
+ * MOSI (D28) -> GPIO11
+ * SCK  (D29) -> GPIO14
+ */
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+};
+
+/*
+ * I2C0 configuration
+ * SDA (D18) -> GPIO12
+ * SCL (D19) -> GPIO13
+ */
+&i2c0 {
+	status = "okay";
+	pinctrl-0 = <&i2c0_default>;
+	pinctrl-names = "default";
+};
+
+/*
+ * UART0 configuration
+ * RX (D0) -> GPIO1
+ * TX (D1) -> GPIO0
+ */
+&uart0 {
+	status = "okay";
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+};
+
+/*
+ * UART1 configuration (NINA WiFi module)
+ * TX  (D25) -> GPIO8
+ * RX  (D26) -> GPIO9
+ * CTS (D27) -> GPIO10
+ * RTS (D28) -> GPIO11
+ */
+&uart1 {
+	status = "okay";
+	pinctrl-0 = <&uart1_default>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	hw-flow-control;
+};
+
+&zephyr_udc0 {
+	board_cdc_acm_uart: board_cdc_acm_uart {
+		compatible = "zephyr,cdc-acm-uart";
+		status = "okay";
+	};
+};
+
+&flash0 {
+	partitions {
+		user_sketch: partition@e0000 {
+			reg = <0x0E0000 0x20000>;
+		};
+	};
+};
