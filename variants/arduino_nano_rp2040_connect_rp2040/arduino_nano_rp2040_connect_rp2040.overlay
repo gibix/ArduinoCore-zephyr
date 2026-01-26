@@ -94,7 +94,7 @@
 
 &pinctrl {
 	/*
-	 * PWM pin control
+	 * Additional PWM pin control for Arduino analogWrite()
 	 * PWM slice assignment: GPIO / 2 (integer division)
 	 * PWM channel: A if GPIO even, B if GPIO odd
 	 */
@@ -128,9 +128,9 @@
 	};
 
 	/*
-	  * D8 -> GPIO20 -> PWM2A,
-	  * D12 -> GPIO4 -> PWM2A
-	*/
+	 * D8 -> GPIO20 -> PWM2A,
+	 * D12 -> GPIO4 -> PWM2A
+	 */
 	pwm_ch2a_default: pwm_ch2a_default {
 		group1 {
 			pinmux = <PWM_2A_P4>, <PWM_2A_P20>;
@@ -141,13 +141,6 @@
 	pwm_ch2b_default: pwm_ch2b_default {
 		group1 {
 			pinmux = <PWM_2B_P5>, <PWM_2B_P21>;
-		};
-	};
-
-	/* D13/LED -> GPIO6 -> PWM3A */
-	pwm_ch3a_default: pwm_ch3a_default {
-		group1 {
-			pinmux = <PWM_3A_P6>;
 		};
 	};
 
@@ -173,79 +166,11 @@
 	};
 
 	/*
-	 * SPI0 pin control
-	 * MISO (D12) -> GPIO4
-	 * MOSI (D11) -> GPIO7
-	 * SCK  (D13) -> GPIO6
-	 * SS   (D10) -> GPIO5 (directly controlled)
-	 */
-	spi0_default: spi0_default {
-		group1 {
-			pinmux = <SPI0_TX_P7>;  /* MOSI -> GPIO7 */
-		};
-		group2 {
-			pinmux = <SPI0_RX_P4>;  /* MISO -> GPIO4 */
-			input-enable;
-		};
-		group3 {
-			pinmux = <SPI0_SCK_P6>; /* SCK -> GPIO6 */
-		};
-	};
-
-	/*
-	 * SPI1 pin control (NINA WiFi module)
-	 * MISO (D25) -> GPIO8
-	 * MOSI (D28) -> GPIO11
-	 * SCK  (D29) -> GPIO14
-	 * CS   (D26) -> GPIO9 (software controlled)
-	 */
-	spi1_default: spi1_default {
-		group1 {
-			pinmux = <SPI1_TX_P11>;  /* MOSI -> GPIO11 */
-		};
-		group2 {
-			pinmux = <SPI1_RX_P8>;   /* MISO -> GPIO8 */
-			input-enable;
-		};
-		group3 {
-			pinmux = <SPI1_SCK_P14>; /* SCK -> GPIO14 */
-		};
-	};
-
-	/*
-	 * I2C0 pin control
-	 * SDA (D18) -> GPIO12
-	 * SCL (D19) -> GPIO13
-	 */
-	i2c0_default: i2c0_default {
-		group1 {
-			pinmux = <I2C0_SDA_P12>, <I2C0_SCL_P13>;
-			input-enable;
-			input-schmitt-enable;
-		};
-	};
-
-	/*
-	 * UART0 pin control
-	 * RX (D0) -> GPIO1
-	 * TX (D1) -> GPIO0
-	 */
-	uart0_default: uart0_default {
-		group1 {
-			pinmux = <UART0_TX_P0>;
-		};
-		group2 {
-			pinmux = <UART0_RX_P1>;
-			input-enable;
-		};
-	};
-
-	/*
 	 * UART1 pin control (NINA WiFi module)
-	 * TX  (D25) -> GPIO8
-	 * RX  (D26) -> GPIO9
-	 * CTS (D27) -> GPIO10
-	 * RTS (D28) -> GPIO11
+	 * TX  -> GPIO8
+	 * RX  -> GPIO9
+	 * CTS -> GPIO10
+	 * RTS -> GPIO11
 	 */
 	uart1_default: uart1_default {
 		group1 {
@@ -266,7 +191,6 @@
 };
 
 &pwm {
-	status = "okay";
 	divider-frac-4 = <15>;
 	divider-int-4 = <255>;
 };
@@ -312,60 +236,7 @@
 	};
 };
 
-/*
- * SPI0 configuration
- * MISO (D12) -> GPIO4
- * MOSI (D11) -> GPIO7
- * SCK  (D13) -> GPIO6
- */
-&spi0 {
-	status = "okay";
-	pinctrl-0 = <&spi0_default>;
-	pinctrl-names = "default";
-};
-
-/*
- * SPI1 configuration (NINA WiFi module)
- * MISO (D25) -> GPIO8
- * MOSI (D28) -> GPIO11
- * SCK  (D29) -> GPIO14
- */
-&spi1 {
-	status = "okay";
-	pinctrl-0 = <&spi1_default>;
-	pinctrl-names = "default";
-};
-
-/*
- * I2C0 configuration
- * SDA (D18) -> GPIO12
- * SCL (D19) -> GPIO13
- */
-&i2c0 {
-	status = "okay";
-	pinctrl-0 = <&i2c0_default>;
-	pinctrl-names = "default";
-};
-
-/*
- * UART0 configuration
- * RX (D0) -> GPIO1
- * TX (D1) -> GPIO0
- */
-&uart0 {
-	status = "okay";
-	pinctrl-0 = <&uart0_default>;
-	pinctrl-names = "default";
-	current-speed = <115200>;
-};
-
-/*
- * UART1 configuration (NINA WiFi module)
- * TX  (D25) -> GPIO8
- * RX  (D26) -> GPIO9
- * CTS (D27) -> GPIO10
- * RTS (D28) -> GPIO11
- */
+/* UART1 for NINA WiFi module */
 &uart1 {
 	status = "okay";
 	pinctrl-0 = <&uart1_default>;
@@ -377,7 +248,6 @@
 &zephyr_udc0 {
 	board_cdc_acm_uart: board_cdc_acm_uart {
 		compatible = "zephyr,cdc-acm-uart";
-		status = "okay";
 	};
 };
 
