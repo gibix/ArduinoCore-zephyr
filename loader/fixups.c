@@ -53,6 +53,54 @@ SYS_INIT(disable_bootloader_mpu, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAU
 SYS_INIT(disable_mpu_rasr_xn, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
 #endif
 
+#if defined(CONFIG_BOARD_ARDUINO_NANO_CONNECT)
+#include <zephyr/kernel.h>
+#include <zephyr/drivers/gpio.h>
+#include <pico/bootrom.h>
+
+/*
+ * Double-tap reset detection: if the board is reset twice within 500ms,
+ * enter USB bootloader (BOOTSEL) mode. This mirrors the original
+ * ArduinoCore-mbed NANO_RP2040_CONNECT behavior.
+ *
+ * A magic token is stored in uninitialized RAM (.noinit), which survives
+ * a warm reset but is lost on power cycle. On boot:
+ *   - If the token is present: a second reset happened quickly, so we
+ *     clear the token and enter USB boot mode (never returns).
+ *   - If not: write the token, wait 500ms, then clear it and boot normally.
+ */
+static const uint32_t magic_token[] = {
+	0xf01681de,
+	0xbd729b29,
+	0xd359be7a,
+};
+
+/* Non-static so the variant's _on_1200_bps() can arm the same magic. */
+uint32_t magic_location[3] __attribute__((section(".noinit.double_tap")));
+
+#define NANO_RP2040_LED_PIN 6
+
+int double_tap_check(void) {
+	if (magic_location[0] == magic_token[0] && magic_location[1] == magic_token[1] &&
+		magic_location[2] == magic_token[2]) {
+		magic_location[0] = 0;
+		reset_usb_boot(1 << NANO_RP2040_LED_PIN, 0);
+		/* never returns */
+	}
+
+	for (int i = 0; i < 3; i++) {
+		magic_location[i] = magic_token[i];
+	}
+
+	k_busy_wait(500000);
+
+	magic_location[0] = 0;
+	return 0;
+}
+
+SYS_INIT(double_tap_check, POST_KERNEL, 0);
+#endif
+
 #if defined(CONFIG_INPUT)
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>

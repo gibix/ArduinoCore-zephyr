@@ -313,6 +313,16 @@ EXPORT_SYMBOL(sys_clock_cycle_get_32);
 #if defined(CONFIG_ARM)
 extern uint32_t __aeabi_read_tp(void);
 EXPORT_LIBC_SYM(__aeabi_read_tp);
+extern void __gnu_thumb1_case_uqi(void);
+EXPORT_LIBC_SYM(__gnu_thumb1_case_uqi);
+extern void __gnu_thumb1_case_sqi(void);
+EXPORT_LIBC_SYM(__gnu_thumb1_case_sqi);
+extern void __gnu_thumb1_case_uhi(void);
+EXPORT_LIBC_SYM(__gnu_thumb1_case_uhi);
+extern void __gnu_thumb1_case_shi(void);
+EXPORT_LIBC_SYM(__gnu_thumb1_case_shi);
+extern void __gnu_thumb1_case_si(void);
+EXPORT_LIBC_SYM(__gnu_thumb1_case_si);
 FORCE_EXPORT_SYM(__aeabi_dcmpun);
 FORCE_EXPORT_SYM(__aeabi_dcmple);
 FORCE_EXPORT_SYM(__aeabi_d2lz);
@@ -344,6 +354,8 @@ FORCE_EXPORT_SYM(__aeabi_idivmod);
 FORCE_EXPORT_SYM(__aeabi_ldivmod);
 FORCE_EXPORT_SYM(__aeabi_ul2f);
 FORCE_EXPORT_SYM(__aeabi_dcmpge);
+FORCE_EXPORT_SYM(__aeabi_lmul);
+#endif
 
 #if defined (CONFIG_CPP)
 FORCE_EXPORT_SYM(__cxa_pure_virtual);
@@ -410,4 +422,9 @@ EXPORT_SYMBOL(arm_irq_priority_set);
 
 #if defined(__arm__)
 EXPORT_SYMBOL(SystemCoreClock);
+#endif
+
+#if defined(CONFIG_BOARD_ARDUINO_NANO_CONNECT)
+extern uint32_t magic_location[3];
+EXPORT_SYMBOL(magic_location);
 #endif

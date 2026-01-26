@@ -65,6 +65,20 @@
 #ifdef CONFIG_ARM
 /* ARM EABI thread pointer access */
 W0(size_t, __aeabi_read_tp)
+
+/*
+ * Thumb1 switch-dispatch helpers.
+ *
+ * These use a non-standard calling convention: BL sets LR to the jump table
+ * base (not a return address). With -mlong-calls the compiler lowers each
+ * void-void wrapper to a tail call (ldr r3, =addr; bx r3), leaving LR
+ * unchanged so the real function sees the original table pointer.
+ */
+V0(__gnu_thumb1_case_uqi)
+V0(__gnu_thumb1_case_sqi)
+V0(__gnu_thumb1_case_uhi)
+V0(__gnu_thumb1_case_shi)
+V0(__gnu_thumb1_case_si)
 #endif
 
 /* string.h */
