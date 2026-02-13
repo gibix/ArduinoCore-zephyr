@@ -43,7 +43,7 @@ while read -r item; do
 		echo "::group::=== ${subarch}:${board} (${variant}) ==="
 	fi
 
-	./extra/build.sh "$target" $args
+	./extra/build.sh $board
 	result=$?
 	final_result=$((final_result | result))
 

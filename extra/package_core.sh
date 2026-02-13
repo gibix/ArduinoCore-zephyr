@@ -49,29 +49,10 @@ log_msg group "Packaging ${ARTIFACT_NAME:-all variants} ($(basename $OUTPUT_FILE
 
 # create a temporary boards.txt file with the correct list of boards
 TEMP_BOARDS=$(mktemp -p . | sed 's/\.\///')
-cat boards.txt >> $TEMP_BOARDS
+cat boards.txt boards.local.txt >> $TEMP_BOARDS
 for board in $EXCLUDED_BOARDS ; do
 	# remove (even commented) lines for excluded boards
 	sed -i "/^\(\s*#\s*\)\?${board}\./d" $TEMP_BOARDS
-done
-# set proper maximum sizes for included variants
-# and test that the load address matches the build 
-for variant in $INCLUDED_VARIANTS ; do
-	board=$(echo ${BOARD_DETAILS} | jq -cr "map(select(.variant == \"${variant}\")) | .[0].board")
-	# maximum sketch size: size of sketch partition (exact limit)
-	# maximum data size: configured LLEXT heap size (larger bound, real limit is smaller)
-	CODE_SIZE=$(( $(cat variants/${variant}/syms-static.ld | grep '\<_sketch_max_size\>' | cut -d '=' -f 2 | tr -d ');') ))
-	DATA_SIZE=$(( 1024*$(cat firmwares/zephyr-${variant}.config | grep 'LLEXT_HEAP_SIZE' | cut -d '=' -f 2) ))
-	sed -i -e "s/^${board}\.upload\.maximum_size=.*/${board}.upload.maximum_size=${CODE_SIZE}/" $TEMP_BOARDS
-	sed -i -e "s/^${board}\.upload\.maximum_data_size=.*/${board}.upload.maximum_data_size=${DATA_SIZE}/" $TEMP_BOARDS
-
-	# load address: must match the one used in the linker script
-	CODE_ADDR=$(cat variants/${variant}/syms-static.ld | grep '\<_sketch_load_addr\>' | cut -d '=' -f 2 | tr -d ');')
-	BOARDS_ADDR=$(grep "/^${board}\.upload\.address=.*/" $TEMP_BOARDS | cut -d '=' -f 2)
-	if [ "${CODE_ADDR,,}" != "${BOARDS_ADDR,,}" ] ; then
-		log_msg error "boards.txt: '${board}.upload.address' should be ${CODE_ADDR,,}"
-		RET=3
-	fi
 done
 # remove multiple empty lines
 sed -i '/^$/N;/^\n$/D' $TEMP_BOARDS

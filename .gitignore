@@ -2,6 +2,8 @@
 /distrib/
 /firmwares/*
 /venv/
+/boards.local.txt
+
 llext-edk/
 cflags.txt
 cxxflags.txt

@@ -183,9 +183,11 @@ jobs:
 
           # Preprare an archive of the built binaries (and build dir on failure)
           [ "${{ job.status }}" == "failure" ] && FULL_BUILD_DIR="build/${{ matrix.variant }}/"
+          sed -e '/^#/d' boards.local.txt > boards.local_${{ matrix.variant }}.txt
           tar chf - \
             firmwares/*${{ matrix.variant }}* \
             variants/${{ matrix.variant }}/ \
+            boards.local_${{ matrix.variant }}.txt \
             ${FULL_BUILD_DIR} \
           | zstd > binaries-${ARTIFACT_TAG}.tar.zstd
 
@@ -258,6 +260,7 @@ jobs:
           for f in binaries-*.tar.zstd ; do
             tar --use-compress-program=unzstd -xpf $f
           done
+          cat $(ls boards.local_*.txt | sort) >> boards.local.txt
           # Create the core artifact for this set of boards
           ./extra/package_core.sh ${{ matrix.artifact }} ${CORE_TAG} distrib/${CORE_ARTIFACT}.tar.bz2
 
