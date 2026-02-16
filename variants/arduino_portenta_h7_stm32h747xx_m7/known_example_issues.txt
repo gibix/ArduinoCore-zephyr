@@ -9,7 +9,4 @@
 # against the path of each sketch found in this repo. If a match is found, the
 # sketch compilation result will be ignored.
 
-# bug at core link time
-libraries/Ethernet/examples/UDPSendReceiveString
-libraries/Ethernet/examples/UdpNtpClient
 libraries/Storage/examples/FlashFormat

@@ -11,7 +11,3 @@
 
 # needs porting the SE05X library from mbed
 libraries/Arduino_SecureElement/
-
-# bug at core link time
-libraries/Ethernet/examples/UDPSendReceiveString
-libraries/Ethernet/examples/UdpNtpClient
