@@ -125,7 +125,7 @@ recipe.c.combine.3.pattern="{runtime.tools.gen-rodata-ld.path}/gen-rodata-ld" "{
 recipe.c.combine.4.pattern={build.link_command} "-T{build.path}/rodata_split.ld" {build.link_args.build-{build.link_mode}} {build.link_args.build-common}
 
 ## Combine gc-sections, archives, and objects - Single-pass linking (older IDEs)
-recipe.c.combine.pattern={build.link_command} {build.link_args.build-{build.link_mode}} {build.link_args.build-common}
+recipe.c.combine.pattern={build.link_command} {build.link_args.build-{build.link_mode}} -T{build.ldscript.path}/build-rodata.ld {build.link_args.build-common}
 
 recipe.hooks.linking.postlink.1.pattern="{compiler.path}{build.crossprefix}strip" --strip-debug "{build.path}/{build.project_name}_debug.elf" -o "{build.path}/{build.project_name}.elf"
 
