@@ -165,6 +165,13 @@
 		 <&rcc STM32_SRC_HSE FDCAN_SEL(0)>;
 };
 
+&dfsdm1 {
+	status = "okay";
+	dfsdm1_flt0: filter@0 {
+		status = "okay";
+	};
+};
+
 &dcmi {
 	status = "okay";
 	/* ext-sdram = <&sdram1>; */

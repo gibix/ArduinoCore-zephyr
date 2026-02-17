@@ -1,11 +1,15 @@
+/* Copyright (C) Arduino SRL (Daniele Aimo)
+ * SPDX-License-Identifier: MPL-2.0 */
+
 /*
-  Nano 33 BLE Microphone to Serial Plotter
+  Nano 33 BLE and Giga (with Giga Display) Microphone Serial Plotter
 */
 #include <PDM.h>
 
-#ifndef CONFIG_BOARD_ARDUINO_NANO_33_BLE
-#error "Only Nano 33 BLE board is currently supported by this library"
+#if !defined(CONFIG_BOARD_ARDUINO_NANO_33_BLE) && !defined(ARDUINO_GIGA)
+#error "Only Nano 33 BLE or Arduino GIGA boards are currently supported by this library"
 #endif
+
 // default number of output channels
 // Nano 33 BLE only supports 1 channel
 static const char channels = 1;

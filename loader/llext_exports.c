@@ -122,6 +122,8 @@ EXPORT_SYMBOL(k_msgq_put);
 EXPORT_SYMBOL(k_msgq_get);
 EXPORT_SYMBOL(k_msgq_num_used_get);
 EXPORT_SYMBOL(k_sys_work_q);
+EXPORT_SYMBOL(k_mem_slab_init);
+EXPORT_SYMBOL(k_mem_slab_free);
 
 #if defined(CONFIG_USB_DEVICE_STACK)
 EXPORT_SYMBOL(usb_enable);
