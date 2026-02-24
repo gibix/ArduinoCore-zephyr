@@ -17,11 +17,13 @@ manifest:
       url-base: https://github.com/facchinm
     - name: pillo79
       url-base: https://github.com/pillo79
+    - name: maidnl
+      url-base: https://github.com/maidnl
 
   projects:
     - name: zephyr
-      remote: arduino
-      revision: zephyr-arduino-v4.2.0
+      remote: maidnl
+      revision: dfsdm_driver_dev
       import:
         name-allowlist:
           - cmsis
