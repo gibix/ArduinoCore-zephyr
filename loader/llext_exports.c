@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <zephyr/kernel.h>
+#include <time.h>
 
 #define FORCE_EXPORT_SYM(name) \
        extern void name(void); \
@@ -262,6 +263,10 @@ EXPORT_SYMBOL(k_fatal_halt);
 EXPORT_SYMBOL(k_work_schedule);
 //FORCE_EXPORT_SYM(k_timer_user_data_set);
 //FORCE_EXPORT_SYM(k_timer_start);
+
+EXPORT_SYMBOL(time);
+EXPORT_SYMBOL(sys_clock_settime);
+EXPORT_SYMBOL(mktime);
 
 EXPORT_SYMBOL(printf);
 EXPORT_SYMBOL(sprintf);
