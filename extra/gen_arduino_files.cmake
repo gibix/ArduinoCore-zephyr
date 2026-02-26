@@ -48,6 +48,11 @@ foreach(variant ${VARIANTS})
 	# exclude other problematic macros shared between C and C++
 	list(FILTER LLEXT_BASE_CFLAGS EXCLUDE REGEX "-fdiagnostics-color=always")
 
+	# get machine flags (-msomething) in a separate list
+	set(LLEXT_MACHINE_FLAGS ${LLEXT_BASE_CFLAGS})
+	list(FILTER LLEXT_MACHINE_FLAGS INCLUDE REGEX "-m.*")
+	list(FILTER LLEXT_BASE_CFLAGS EXCLUDE REGEX "-m.*")
+
 	# (temp) generate C++ flags from C flags
 	set(LLEXT_BASE_CXXFLAGS ${LLEXT_BASE_CFLAGS})
 	list(FILTER LLEXT_BASE_CXXFLAGS EXCLUDE REGEX "-Wno-pointer-sign")
@@ -55,9 +60,11 @@ foreach(variant ${VARIANTS})
 	list(FILTER LLEXT_BASE_CXXFLAGS EXCLUDE REGEX "-std=c.*")
 
 	# save flag files
+	list(JOIN LLEXT_MACHINE_FLAGS "\n" EDK_MACHINE_FLAGS)
+	file(WRITE ${dir}/machine_flags.txt "${EDK_MACHINE_FLAGS}")
+
 	list(JOIN LLEXT_BASE_CFLAGS "\n" EDK_CFLAGS)
 	file(WRITE ${dir}/cflags.txt "${EDK_CFLAGS}")
-
 
 	list(JOIN LLEXT_BASE_CXXFLAGS "\n" EDK_CXXFLAGS)
 	file(WRITE ${dir}/cxxflags.txt "${EDK_CXXFLAGS}")
