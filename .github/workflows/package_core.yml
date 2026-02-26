@@ -435,7 +435,27 @@ jobs:
           path: comment-request/
           retention-days: 1
 
-      # teports are no longer needed now
+      # The last line makes the job fail if the 'result' file does not contain "PASSED".
+      # No further actions are allowed in case of error.
+      - run: |
+          cat result
+          grep -q "PASSED" result # otherwise CI test failed
+
+
+
+  # Clean up test results only if the verification actually passed, so that
+  # they are still available for action re-runs in case of failure.
+
+  clean-temps:
+    name: Clean up test results
+    runs-on: ubuntu-latest
+    if: ${{ needs.verify-core.result == 'success' }}
+    needs:
+      - build-env
+      - package-core
+      - verify-core
+    steps:
+
       - name: Clean up intermediate artifacts
         uses: geekyeggo/delete-artifact@v5.1.0
         with:
@@ -443,12 +463,6 @@ jobs:
             build-report-*
             test-report-*
           failOnError: false
-
-      # The last line makes the job fail if the 'result' file does not contain "PASSED".
-      # No further actions are allowed in case of error.
-      - run: |
-          cat result
-          grep "PASSED" result >& /dev/null # otherwise CI test failed
 
 
 
