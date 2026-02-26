@@ -10,6 +10,19 @@
 #include "api/Client.h"
 #include "unistd.h"
 #include "zephyr/sys/printk.h"
+#include <errno.h>
+
+/*
+ * errno is a TLS variable in picolibc (CONFIG_LIBC_ERRNO=1). LLEXT modules
+ * are compiled with -ftls-model=local-exec which cannot access the loader's
+ * TLS block directly — doing so generates __aeabi_read_tp calls that either
+ * aren't exported or use the wrong TLS offset.
+ *
+ * arduino_errno_ptr() runs inside the loader where the TLS layout is known
+ * and returns a plain pointer. Dereferencing it on the LLEXT side requires
+ * no TLS mechanism.
+ */
+extern "C" int *arduino_errno_ptr(void);
 
 class ZephyrClient : public arduino::Client, ZephyrSocketWrapper {
 private:
@@ -63,10 +76,17 @@ public:
 	int read(uint8_t *buffer, size_t size) override {
 		auto received = recv(buffer, size);
 
-		if (received <= 0) {
+		if (received > 0) {
+			return received;
+		}
+		if (received == 0) {
 			return 0;
 		}
-		return received;
+		int err = *arduino_errno_ptr();
+		if (err == EAGAIN || err == EWOULDBLOCK) {
+			return 0;
+		}
+		return -1;
 	}
 
 	size_t write(uint8_t c) override {
