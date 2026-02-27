@@ -101,6 +101,7 @@ EXPORT_LIBC_SYM(sqrt);
 EXPORT_LIBC_SYM(sqrtf);
 EXPORT_LIBC_SYM(tan);
 EXPORT_LIBC_SYM(tanf);
+EXPORT_LIBC_SYM(ldexp);
 
 // stdio.h
 EXPORT_LIBC_SYM(puts);

@@ -138,6 +138,7 @@ W1(float, tanf, float)
 /* math.h - double(double, double) */
 W2(double, atan2, double, double)
 W2(double, pow, double, double)
+W2(double, ldexp, double, double)
 
 /* math.h - float(float, float) */
 W2(float, atan2f, float, float)
