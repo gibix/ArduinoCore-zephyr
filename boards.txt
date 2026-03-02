@@ -8,7 +8,7 @@ menu.wait_linux_boot=Startup mode
 giga.name=Arduino Giga R1
 giga.build.core=arduino
 giga.build.crossprefix=arm-zephyr-eabi-
-giga.build.compiler_path={runtime.tools.arm-zephyr-eabi-0.16.8.path}/bin/
+giga.build.compiler_path={runtime.tools.arm-zephyr-eabi-0.17.3.path}/bin/
 
 giga.menu.debug.false=Standard
 giga.menu.debug.true=Debug
