@@ -75,6 +75,9 @@ W3(int, strncmp, const char *, const char *, size_t)
 W2(int, strcasecmp, const char *, const char *)
 W3(char *, strncpy, char *, const char *, size_t)
 W2(char *, strcat, char *, const char *)
+W2(char *, strcpy, char *, const char *)
+W3(int, memcmp, const void *, const void *, int)
+W2(void *, memset, void *, int)
 
 /* stdlib.h - conversion */
 W2(double, strtod, const char *, char **)
