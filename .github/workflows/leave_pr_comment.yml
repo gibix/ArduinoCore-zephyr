@@ -32,18 +32,18 @@ jobs:
       - name: Check PR number
         id: check-pr
         uses: carpentries/actions/check-valid-pr@2e20fd5ee53b691e27455ce7ca3b16ea885140e8 # v0.15.0
+        if: ${{ env.PR_NUM }}
         with:
           pr: ${{ env.PR_NUM }}
           sha: ${{ github.event.workflow_run.head_sha }}
 
       - name: Validate PR number
-        if: ${{ steps.check-pr.outputs.VALID != 'true' }}
+        if: ${{ env.PR_NUM && steps.check-pr.outputs.VALID != 'true' }}
         run: |
-          echo "::error::PR number $PR_NUM validation failed"
-          exit 1
+          echo "::warning::PR #$PR_NUM is either invalid or includes changes to workflow"
 
       - name: Update PR comment
-        if: ${{ steps.check-pr.outputs.VALID == 'true' }}
+        if: ${{ env.PR_NUM && steps.check-pr.outputs.VALID == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
