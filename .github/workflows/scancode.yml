@@ -21,7 +21,7 @@ jobs:
         mkdir scancode-inputs
         git fetch origin $GITHUB_BASE_REF
         # copy all new files to a separate directory for scanning
-        for NEW_FILE in $(git diff --name-only --diff-filter=A origin/$GITHUB_BASE_REF..HEAD) ; do
+        for NEW_FILE in $(git diff --name-only --diff-filter=A --ignore-submodules origin/$GITHUB_BASE_REF..HEAD) ; do
           mkdir -p $(dirname "scancode-inputs/$NEW_FILE")
           cp "$NEW_FILE" "scancode-inputs/$NEW_FILE"
         done
