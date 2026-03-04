@@ -144,9 +144,9 @@ recipe.hooks.objcopy.postobjcopy.1.pattern="{runtime.tools.zephyr-sketch-tool.pa
 recipe.hooks.objcopy.postobjcopy.2.pattern="{runtime.tools.zephyr-sketch-tool.path}/zephyr-sketch-tool" {build.zsk_args.debug} {build.zsk_args.mode-{build.link_mode}} {build.zsk_args.startup-mode-{build.boot_mode}} "{build.path}/{build.project_name}.bin"
 
 ## Compute size
-recipe.size.pattern="{compiler.path}{compiler.size.cmd}" -A "{build.path}/{build.project_name}.elf"
-recipe.size.regex.data=^(?:\.data|\.bss)\s+([0-9]+).*
-recipe.size.regex=^(?:\.data|\.text|\.rodata)\S*?\s+([0-9]+).*
+recipe.size.pattern="{runtime.tools.check-size.path}/check-size" {build.link_mode} "{runtime.platform.path}/firmwares/zephyr-{build.variant}.config" "{build.path}/{build.project_name}.{upload.extension}" "{build.path}/{build.project_name}.elf"
+recipe.size.regex=^\.text\s+([0-9]+).*
+recipe.size.regex.data=^\.data\s+([0-9]+).*
 
 ## Save output file
 recipe.output.tmp_file={build.project_name}.{upload.extension}

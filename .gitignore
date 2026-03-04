@@ -7,6 +7,7 @@
 llext-edk/
 cflags.txt
 cxxflags.txt
+machine_flags.txt
 includes.txt
 syms-dynamic.ld
 syms-static.ld
