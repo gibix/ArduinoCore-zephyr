@@ -49,12 +49,8 @@ giga.upload.use_1200bps_touch=true
 giga.upload.wait_for_upload_port=true
 giga.upload.native_usb=true
 giga.upload.maximum_size=1966080
-giga.upload.maximum_data_size=523624
-
+giga.upload.maximum_data_size=131072
 giga.upload.address=0x080E0000
-
-giga.upload.maximum_size=786432
-giga.upload.maximum_data_size=523624
 
 giga.bootloader.tool=dfu-util
 giga.bootloader.tool.default=dfu-util
@@ -117,11 +113,8 @@ nano33ble.upload.use_1200bps_touch=true
 nano33ble.upload.wait_for_upload_port=true
 nano33ble.upload.native_usb=true
 nano33ble.upload.maximum_size=1966080
-nano33ble.upload.maximum_data_size=523624
+nano33ble.upload.maximum_data_size=131072
 nano33ble.upload.address=0xD0000
-
-nano33ble.upload.maximum_size=786432
-nano33ble.upload.maximum_data_size=523624
 
 nano33ble.bootloader.tool=bossac
 nano33ble.bootloader.tool.default=bossac
@@ -186,7 +179,7 @@ ek_ra8d1.upload.use_1200bps_touch=false
 ek_ra8d1.upload.wait_for_upload_port=false
 ek_ra8d1.upload.native_usb=true
 ek_ra8d1.upload.maximum_size=1966080
-ek_ra8d1.upload.maximum_data_size=523624
+ek_ra8d1.upload.maximum_data_size=32768
 ek_ra8d1.upload.address=0x2032000
 ek_ra8d1.upload.target=R7FA8D1AH
 
@@ -242,7 +235,7 @@ frdm_mcxn947.upload.use_1200bps_touch=false
 frdm_mcxn947.upload.wait_for_upload_port=false
 frdm_mcxn947.upload.native_usb=true
 frdm_mcxn947.upload.maximum_size=1966080
-frdm_mcxn947.upload.maximum_data_size=523624
+frdm_mcxn947.upload.maximum_data_size=32768
 
 frdm_mcxn947.bootloader.tool=pyocd
 frdm_mcxn947.bootloader.tool.default=pyocd
@@ -296,12 +289,8 @@ portentah7.upload.use_1200bps_touch=true
 portentah7.upload.wait_for_upload_port=true
 portentah7.upload.native_usb=true
 portentah7.upload.maximum_size=1966080
-portentah7.upload.maximum_data_size=523624
-
+portentah7.upload.maximum_data_size=131072
 portentah7.upload.address=0x080E0000
-
-portentah7.upload.maximum_size=786432
-portentah7.upload.maximum_data_size=523624
 
 portentah7.bootloader.tool=dfu-util
 portentah7.bootloader.tool.default=dfu-util
@@ -364,7 +353,7 @@ frdm_rw612.upload.use_1200bps_touch=false
 frdm_rw612.upload.wait_for_upload_port=false
 frdm_rw612.upload.native_usb=true
 frdm_rw612.upload.maximum_size=1966080
-frdm_rw612.upload.maximum_data_size=523624
+frdm_rw612.upload.maximum_data_size=32768
 
 frdm_rw612.bootloader.tool=pyocd
 frdm_rw612.bootloader.tool.default=pyocd
@@ -414,12 +403,9 @@ niclasense.upload.use_1200bps_touch=false
 niclasense.upload.wait_for_upload_port=false
 niclasense.upload.native_usb=false
 niclasense.upload.maximum_size=1966080
-niclasense.upload.maximum_data_size=523624
+niclasense.upload.maximum_data_size=15360
 niclasense.upload.address=0x70000
 niclasense.upload.target=nrf52
-
-niclasense.upload.maximum_size=786432
-niclasense.upload.maximum_data_size=523624
 
 niclasense.bootloader.tool=openocd
 niclasense.bootloader.tool.default=openocd
@@ -482,7 +468,7 @@ portentac33.upload.use_1200bps_touch=true
 portentac33.upload.wait_for_upload_port=false
 portentac33.upload.native_usb=true
 portentac33.upload.maximum_size=1966080
-portentac33.upload.maximum_data_size=523624
+portentac33.upload.maximum_data_size=131072
 portentac33.upload.address=0x100000
 portentac33.upload.dfuse=-Q -w
 
@@ -539,12 +525,8 @@ opta.upload.use_1200bps_touch=true
 opta.upload.wait_for_upload_port=true
 opta.upload.native_usb=true
 opta.upload.maximum_size=1966080
-opta.upload.maximum_data_size=523624
-
+opta.upload.maximum_data_size=131072
 opta.upload.address=0x080E0000
-
-opta.upload.maximum_size=786432
-opta.upload.maximum_data_size=523624
 
 opta.bootloader.tool=dfu-util
 opta.bootloader.tool.default=dfu-util
@@ -596,7 +578,7 @@ nano_matter.upload.tool=openocd
 nano_matter.upload.tool.default=openocd
 nano_matter.upload.config=-f target/efm32s2_g23.cfg
 nano_matter.upload.programmer=-f interface/cmsis-dap.cfg
-nano_matter.upload.maximum_data_size=262144
+nano_matter.upload.maximum_data_size=65536
 nano_matter.upload.maximum_size=1572864
 nano_matter.upload.address=0x080C4000
 nano_matter.upload.protocol=SWD
@@ -682,7 +664,7 @@ unoq.upload.use_1200bps_touch=false
 unoq.upload.wait_for_upload_port=false
 unoq.upload.native_usb=true
 unoq.upload.maximum_size=1966080
-unoq.upload.maximum_data_size=523624
+unoq.upload.maximum_data_size=131072
 
 unoq.bootloader.tool=remoteocd
 unoq.bootloader.tool.default=remoteocd
