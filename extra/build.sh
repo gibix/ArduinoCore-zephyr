@@ -75,8 +75,19 @@ fi
 # Build the loader
 BUILD_DIR=build/${variant}
 VARIANT_DIR=variants/${variant}
+
+# Ensure auto_exports.c exists (empty) so CMake GLOB picks it up
+: > loader/auto_exports.c
+
 rm -rf ${BUILD_DIR}
 west build -d ${BUILD_DIR} -b ${target} loader -t llext-edk ${args}
+
+# Auto-generate symbol exports from the loader ELF
+echo "Auto-generating symbol exports"
+extra/gen_auto_exports.py "${BUILD_DIR}/zephyr/zephyr.elf" -o loader/auto_exports.c
+
+# Incremental rebuild to include auto-generated exports
+west build -d ${BUILD_DIR} -t llext-edk
 
 # Extract the generated EDK tarball and copy it to the variant directory
 mkdir -p ${VARIANT_DIR} firmwares
