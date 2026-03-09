@@ -84,7 +84,8 @@ west build -d ${BUILD_DIR} -b ${target} loader -t llext-edk ${args}
 
 # Auto-generate symbol exports from the loader ELF
 echo "Auto-generating symbol exports"
-extra/gen_auto_exports.py "${BUILD_DIR}/zephyr/zephyr.elf" -o loader/auto_exports.c
+extra/gen_auto_exports.py "${BUILD_DIR}/zephyr/zephyr.elf" -o loader/auto_exports.c \
+    --log-excluded "${BUILD_DIR}/auto_exports_excluded.log"
 
 # Incremental rebuild to include auto-generated exports
 west build -d ${BUILD_DIR} -t llext-edk

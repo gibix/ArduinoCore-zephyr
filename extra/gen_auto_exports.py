@@ -142,9 +142,12 @@ def main():
                         help='Additional exclude regex patterns')
     parser.add_argument('-o', '--output', default=None,
                         help='Output file (default: stdout)')
+    parser.add_argument('--log-excluded', default=None, metavar='FILE',
+                        help='Write excluded symbols with reasons to FILE')
     args = parser.parse_args()
 
-    excludes = [re.compile(p) for p in DEFAULT_EXCLUDES + args.exclude]
+    exclude_patterns = DEFAULT_EXCLUDES + args.exclude
+    excludes = [(p, re.compile(p)) for p in exclude_patterns]
 
     with open(args.elf, 'rb') as f:
         try:
@@ -161,6 +164,7 @@ def main():
         exported_names, exported_addrs = get_llext_exported(elf)
 
         candidates = []
+        excluded = []  # (name, reason)
         for section in elf.iter_sections():
             if not isinstance(section, SymbolTableSection):
                 continue
@@ -174,11 +178,18 @@ def main():
                     continue
                 if name in exported_names or symbol['st_value'] in exported_addrs:
                     continue
-                if any(pat.search(name) for pat in excludes):
+                matched = None
+                for pat_str, pat_re in excludes:
+                    if pat_re.search(name):
+                        matched = pat_str
+                        break
+                if matched:
+                    excluded.append((name, matched))
                     continue
                 candidates.append(name)
 
     candidates.sort()
+    excluded.sort()
 
     out = open(args.output, 'w') if args.output else sys.stdout
     try:
@@ -194,8 +205,18 @@ def main():
         if args.output:
             out.close()
 
-    sys.stderr.write(f'gen_auto_exports: {len(candidates)} new symbols '
-                     f'({len(exported_names)} already exported)\n')
+    if args.log_excluded:
+        with open(args.log_excluded, 'w') as lf:
+            lf.write(f'# {len(excluded)} symbols excluded, '
+                     f'{len(candidates)} exported, '
+                     f'{len(exported_names)} already exported\n')
+            lf.write('#\n# symbol\texclude pattern\n')
+            for name, reason in excluded:
+                lf.write(f'{name}\t{reason}\n')
+
+    sys.stderr.write(f'gen_auto_exports: {len(candidates)} new, '
+                     f'{len(excluded)} excluded, '
+                     f'{len(exported_names)} already exported\n')
 
 if __name__ == '__main__':
     main()
