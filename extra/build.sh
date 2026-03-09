@@ -76,15 +76,33 @@ fi
 BUILD_DIR=build/${variant}
 VARIANT_DIR=variants/${variant}
 
-# Ensure auto_exports.c exists (empty) so CMake GLOB picks it up
-: > loader/auto_exports.c
+# Seed auto_exports.c from force_exports.txt so that sketch-facing symbols
+# survive --gc-sections in the first pass (they have no other references).
+python3 -c "
+import sys
+print('/* Seed from force_exports.txt — will be overwritten by gen_auto_exports.py */')
+print('#include <zephyr/llext/symbol.h>')
+print('#define FORCE_EXPORT_SYM(name) \\\\')
+print('       extern __attribute__((weak)) void name(void); \\\\')
+print('       EXPORT_SYMBOL(name);')
+for line in open('loader/force_exports.txt'):
+    line = line.strip()
+    if line and not line.startswith('#'):
+        print(f'FORCE_EXPORT_SYM({line})')
+" > loader/auto_exports.c
 
 rm -rf ${BUILD_DIR}
 west build -d ${BUILD_DIR} -b ${target} loader -t llext-edk ${args}
 
+# Extract EDK from first pass (needed for header-driven allowlist)
+(set -e ; cd ${BUILD_DIR} && rm -rf llext-edk && tar xf zephyr/llext-edk.tar.Z)
+
 # Auto-generate symbol exports from the loader ELF
 echo "Auto-generating symbol exports"
-extra/gen_auto_exports.py "${BUILD_DIR}/zephyr/zephyr.elf" -o loader/auto_exports.c \
+extra/gen_auto_exports.py "${BUILD_DIR}/zephyr/zephyr.elf" \
+    --edk-dir "${BUILD_DIR}/llext-edk/include" \
+    --force-list loader/force_exports.txt \
+    -o loader/auto_exports.c \
     --log-excluded "${BUILD_DIR}/auto_exports_excluded.log"
 
 # Incremental rebuild to include auto-generated exports

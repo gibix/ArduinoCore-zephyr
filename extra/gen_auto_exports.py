@@ -4,12 +4,22 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Generate auto_exports.c with FORCE_EXPORT_SYM() calls for all public functions
-in a Zephyr loader ELF that aren't already exported via LLEXT.
+Generate auto_exports.c with FORCE_EXPORT_SYM() calls for public functions
+in a Zephyr loader ELF, using EDK headers as an allowlist.
+
+Only symbols declared in the EDK's public headers (Zephyr API + Arduino core)
+are exported. Vendor HAL headers under modules/ are excluded from scanning.
+
+Sources for the allowlist:
+  1. ctags function prototypes from public EDK headers
+  2. __syscall declarations (mapped to z_impl_ symbols in the ELF)
+  3. explicit force-export list (for symbols not in any header)
 """
 
 import argparse
+import os
 import re
+import subprocess
 import sys
 
 from elftools.common.exceptions import ELFError
@@ -60,76 +70,81 @@ def get_llext_exported(elf):
                 addrs.add(sym_value)
     return names, addrs
 
-# Default exclude patterns (regexes matched against the full symbol name)
-DEFAULT_EXCLUDES = [
-    r'^_',                  # private/internal (_*, __*)
-    r'^arch_',              # architecture internals
-    r'^z_(?!log_)',         # Zephyr private (but not z_log_*)
-    r'^boot_',              # boot internals
-    r'^reset_',             # reset handlers
-    r'^isr_',               # interrupt handlers
-    r'^sys_\w+_init$',      # init-level functions
+def get_edk_allowlist(edk_dir):
+    """Build allowlist from EDK public headers using ctags + __syscall scan.
+
+    Returns a set of symbol names that are declared in the public API headers.
+    """
+    allowed = set()
+
+    # Directories to scan (public API only, not vendor HAL modules)
+    scan_dirs = []
+    for subdir in ['zephyr/include', 'ArduinoCore-zephyr']:
+        path = os.path.join(edk_dir, subdir)
+        if os.path.isdir(path):
+            scan_dirs.append(path)
+
+    if not scan_dirs:
+        sys.stderr.write(f'gen_auto_exports: warning: no public header dirs '
+                         f'found in {edk_dir}\n')
+        return allowed
+
+    # 1. ctags: extract function prototypes
+    try:
+        result = subprocess.run(
+            ['ctags', '--c-kinds=p', '-x', '--_xformat=%N', '-R'] + scan_dirs,
+            capture_output=True, text=True, timeout=60)
+        for line in result.stdout.splitlines():
+            name = line.strip()
+            if name:
+                allowed.add(name)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        sys.stderr.write(f'gen_auto_exports: warning: ctags failed: {e}\n')
+
+    # 2. __syscall declarations → z_impl_ symbols
+    syscall_re = re.compile(
+        r'__syscall\s+\S+[\s*]+(\w+)\s*\(')
+    for scan_dir in scan_dirs:
+        for root, dirs, files in os.walk(scan_dir):
+            for fname in files:
+                if not fname.endswith('.h'):
+                    continue
+                path = os.path.join(root, fname)
+                try:
+                    with open(path, errors='replace') as f:
+                        for line in f:
+                            m = syscall_re.search(line)
+                            if m:
+                                # The ELF symbol is z_impl_<name>
+                                allowed.add('z_impl_' + m.group(1))
+                except OSError:
+                    continue
+
+    return allowed
+
+def read_force_list(path):
+    """Read symbol names from a force-export list file.
+
+    Returns a set of symbol names that should be exported regardless of
+    whether they appear in EDK headers.  These bypass the type filter too,
+    so STT_OBJECT symbols (variables, structs) can be force-exported.
+    """
+    names = set()
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            names.add(line)
+    return names
+
+# Safety blocklist: symbols that appear in public headers but should
+# never be exported to sketches (dangerous or loader-internal).
+SAFETY_BLOCKLIST = [
     r'^llext_',             # LLEXT loader internals (arbitrary code loading)
-    r'^mbedtls_',           # TLS internals (use socket API instead)
-    r'^whd_',               # CYW43 WiFi driver internals
-    r'^HAL_',               # STM32 HAL (raw peripheral access)
-    r'^LL_',                # STM32 low-level driver
-    r'^stm32_',             # STM32 vendor internals
-    r'^udc_',               # USB device controller internals
-    r'^USB_',               # raw USB register access
-    r'^SDMMC_',             # raw SD/MMC peripheral
-    r'^FMC_',               # raw memory controller
-    r'^dma_',               # raw DMA (use Zephyr DMA API)
-    r'^dmamux_',            # raw DMA mux
-    r'^cy_',                # Cypress vendor internals
-    r'^airoc_',             # Infineon AIROC internals
-    r'^mipi_',              # raw MIPI peripheral
-    r'^sdio_',              # raw SDIO peripheral
-    r'^soc_',               # SoC internals
     r'^do_llext_',          # LLEXT internals
     r'^main$',              # loader main
     r'^idle$',              # idle thread
-    # NXP vendor internals
-    r'^wlan_',              # NXP WLAN driver
-    r'^wifi_',              # NXP WiFi driver internals
-    r'^mlan_',              # NXP MLAN driver
-    r'^wrapper_',           # NXP driver wrappers
-    r'^OSA_',               # NXP OS abstraction
-    r'^FLEXSPI_',           # NXP FlexSPI peripheral
-    r'^CLOCK_',             # NXP clock control
-    r'^POWER_',             # NXP power control
-    r'^SPI_',               # NXP SPI HAL
-    r'^I2C_',               # NXP I2C HAL
-    r'^nxp_',               # NXP internals
-    r'^memc_',              # memory controller driver
-    r'^OSTIMER_',           # NXP OS timer peripheral
-    r'^OCOTP_',             # NXP OTP/fuse controller
-    r'^cau_',               # NXP CAU crypto/temp
-    # Silicon Labs vendor internals
-    r'^sl_',                # Silicon Labs API
-    r'^sli_',               # Silicon Labs internal
-    r'^ll_',                # Silicon Labs link layer
-    r'^RAIL_',              # Silicon Labs radio
-    r'^hci_',               # HCI internals
-    r'^bgbuf_',             # Silicon Labs BLE buffers
-    r'^CMU_',               # Silicon Labs clock management
-    r'^EMU_',               # Silicon Labs energy management
-    r'^MSC_',               # Silicon Labs memory system controller
-    r'^EUSART_',            # Silicon Labs EUSART peripheral
-    r'^USART_',             # Silicon Labs USART peripheral
-    r'^BTLE_',              # Silicon Labs BLE internals
-    r'^usch_',              # Silicon Labs USB host
-    r'^psa_',               # PSA crypto internals
-    r'^bg_',                # Silicon Labs BLE generic
-    r'^sleeptimer_',        # Silicon Labs sleeptimer HAL
-    r'^llcp_',              # Silicon Labs link layer control
-    r'^RAC_',               # Silicon Labs radio controller
-    r'^SYSTEM_',            # Silicon Labs system internals
-    # Common driver/subsystem internals
-    r'^shell_',             # Zephyr shell internals
-    r'^pm_',                # power management internals
-    r'^zperf_',             # Zephyr network perf tool
-    r'^jesd',               # JEDEC flash internals
 ]
 
 def main():
@@ -138,16 +153,21 @@ def main():
     parser = argparse.ArgumentParser(
         description='Generate LLEXT auto-export C file from loader ELF')
     parser.add_argument('elf', help='Path to zephyr.elf')
+    parser.add_argument('--edk-dir', required=True,
+                        help='Path to EDK include directory')
     parser.add_argument('-x', '--exclude', action='append', default=[],
                         help='Additional exclude regex patterns')
     parser.add_argument('-o', '--output', default=None,
                         help='Output file (default: stdout)')
+    parser.add_argument('--force-list', default=None, metavar='FILE',
+                        help='Path to file listing symbols to force-export')
     parser.add_argument('--log-excluded', default=None, metavar='FILE',
                         help='Write excluded symbols with reasons to FILE')
     args = parser.parse_args()
 
-    exclude_patterns = DEFAULT_EXCLUDES + args.exclude
-    excludes = [(p, re.compile(p)) for p in exclude_patterns]
+    blocklist = [(p, re.compile(p)) for p in SAFETY_BLOCKLIST + args.exclude]
+    allowlist = get_edk_allowlist(args.edk_dir)
+    force_set = read_force_list(args.force_list) if args.force_list else set()
 
     with open(args.elf, 'rb') as f:
         try:
@@ -162,6 +182,7 @@ def main():
             NativePtr = UNInt64("ptr")
 
         exported_names, exported_addrs = get_llext_exported(elf)
+        exported_addrs.discard(0)
 
         candidates = []
         excluded = []  # (name, reason)
@@ -173,18 +194,27 @@ def main():
                 if not name:
                     continue
                 if (symbol['st_info']['bind'] != 'STB_GLOBAL'
-                        or symbol['st_info']['type'] != 'STT_FUNC'
                         or symbol['st_shndx'] == 'SHN_UNDEF'):
                     continue
-                if name in exported_names or symbol['st_value'] in exported_addrs:
+                in_force = name in force_set
+                is_func = symbol['st_info']['type'] == 'STT_FUNC'
+                # Non-function symbols are only considered if force-listed
+                if not is_func and not in_force:
                     continue
-                matched = None
-                for pat_str, pat_re in excludes:
+                if not in_force and (name in exported_names or symbol['st_value'] in exported_addrs):
+                    continue
+                # Safety blocklist
+                blocked = None
+                for pat_str, pat_re in blocklist:
                     if pat_re.search(name):
-                        matched = pat_str
+                        blocked = pat_str
                         break
-                if matched:
-                    excluded.append((name, matched))
+                if blocked:
+                    excluded.append((name, f'blocklist: {blocked}'))
+                    continue
+                # Allowlist check (force-listed symbols bypass this)
+                if not in_force and name not in allowlist:
+                    excluded.append((name, 'not in EDK headers'))
                     continue
                 candidates.append(name)
 
@@ -196,7 +226,7 @@ def main():
         out.write('/* Auto-generated by gen_auto_exports.py — do not edit! */\n')
         out.write('#include <zephyr/llext/symbol.h>\n\n')
         out.write('#define FORCE_EXPORT_SYM(name) \\\n')
-        out.write('       extern void name(void); \\\n')
+        out.write('       extern __attribute__((weak)) void name(void); \\\n')
         out.write('       EXPORT_SYMBOL(name);\n\n')
         for name in candidates:
             out.write(f'FORCE_EXPORT_SYM({name})\n')
@@ -210,13 +240,17 @@ def main():
             lf.write(f'# {len(excluded)} symbols excluded, '
                      f'{len(candidates)} exported, '
                      f'{len(exported_names)} already exported\n')
-            lf.write('#\n# symbol\texclude pattern\n')
+            lf.write(f'# allowlist: {len(allowlist)} names from EDK headers, '
+                     f'{len(force_set)} from force list\n')
+            lf.write('#\n# symbol\treason\n')
             for name, reason in excluded:
                 lf.write(f'{name}\t{reason}\n')
 
     sys.stderr.write(f'gen_auto_exports: {len(candidates)} new, '
                      f'{len(excluded)} excluded, '
-                     f'{len(exported_names)} already exported\n')
+                     f'{len(exported_names)} already exported '
+                     f'(allowlist: {len(allowlist)}, '
+                     f'force: {len(force_set)})\n')
 
 if __name__ == '__main__':
     main()
