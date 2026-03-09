@@ -123,20 +123,34 @@ def get_edk_allowlist(edk_dir):
     return allowed
 
 def read_force_list(path):
-    """Read symbol names from a force-export list file.
+    """Read symbol names and patterns from a force-export list file.
 
-    Returns a set of symbol names that should be exported regardless of
-    whether they appear in EDK headers.  These bypass the type filter too,
-    so STT_OBJECT symbols (variables, structs) can be force-exported.
+    Returns (names, patterns) where:
+    - names: set of concrete symbol names to force-export
+    - patterns: list of compiled regexes (from ~-prefixed lines)
+
+    Line prefixes:
+      #  comment
+      ~  regex pattern (matched against ELF symbols)
+      ?  optional/board-specific symbol (weak in seed)
+
+    Concrete symbols and ?-prefixed symbols both go into the names set
+    (the ? is stripped). Patterns bypass the type filter too.
     """
     names = set()
+    patterns = []
     with open(path) as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
-            names.add(line)
-    return names
+            if line.startswith('~'):
+                patterns.append(re.compile(line[1:]))
+            elif line.startswith('?'):
+                names.add(line[1:])
+            else:
+                names.add(line)
+    return names, patterns
 
 # Safety blocklist: symbols that appear in public headers but should
 # never be exported to sketches (dangerous or loader-internal).
@@ -167,7 +181,10 @@ def main():
 
     blocklist = [(p, re.compile(p)) for p in SAFETY_BLOCKLIST + args.exclude]
     allowlist = get_edk_allowlist(args.edk_dir)
-    force_set = read_force_list(args.force_list) if args.force_list else set()
+    if args.force_list:
+        force_set, force_patterns = read_force_list(args.force_list)
+    else:
+        force_set, force_patterns = set(), []
 
     with open(args.elf, 'rb') as f:
         try:
@@ -197,6 +214,11 @@ def main():
                         or symbol['st_shndx'] == 'SHN_UNDEF'):
                     continue
                 in_force = name in force_set
+                if not in_force:
+                    for fp in force_patterns:
+                        if fp.search(name):
+                            in_force = True
+                            break
                 is_func = symbol['st_info']['type'] == 'STT_FUNC'
                 # Non-function symbols are only considered if force-listed
                 if not is_func and not in_force:
@@ -241,7 +263,8 @@ def main():
                      f'{len(candidates)} exported, '
                      f'{len(exported_names)} already exported\n')
             lf.write(f'# allowlist: {len(allowlist)} names from EDK headers, '
-                     f'{len(force_set)} from force list\n')
+                     f'{len(force_set)} from force list, '
+                     f'{len(force_patterns)} patterns\n')
             lf.write('#\n# symbol\treason\n')
             for name, reason in excluded:
                 lf.write(f'{name}\t{reason}\n')
