@@ -185,6 +185,15 @@ FORCE_EXPORT_SYM(net_mgmt_event_wait_on_iface);
 #if defined(CONFIG_MBEDTLS)
 FORCE_EXPORT_SYM(tls_credential_add);
 FORCE_EXPORT_SYM(tls_credential_get);
+FORCE_EXPORT_SYM(mbedtls_pk_init);
+FORCE_EXPORT_SYM(mbedtls_pk_free);
+FORCE_EXPORT_SYM(mbedtls_pk_parse_public_key);
+FORCE_EXPORT_SYM(mbedtls_pk_verify);
+FORCE_EXPORT_SYM(mbedtls_sha256_init);
+FORCE_EXPORT_SYM(mbedtls_sha256_starts);
+FORCE_EXPORT_SYM(mbedtls_sha256_update);
+FORCE_EXPORT_SYM(mbedtls_sha256_finish);
+FORCE_EXPORT_SYM(mbedtls_sha256_free);
 #endif
 
 #if defined(CONFIG_WIFI)

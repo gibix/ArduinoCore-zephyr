@@ -2,13 +2,15 @@
  * OTA WiFi Update Example
  *
  * Downloads a firmware update (.ota file) over HTTP and applies it.
+ * The .ota file includes an OTA header with LZSS compression and CRC-32.
  *
  * To use:
  * 1. Build your sketch normally — the .ota file is created automatically
  * 2. Host the .ota file on an HTTP server:
  *    python3 -m http.server 8080
  * 3. Upload this sketch via USB
- * 4. The board downloads the .ota, writes it to QSPI, and reboots
+ * 4. The board downloads the .ota, verifies CRC, decompresses LZSS,
+ *    writes UPDATE.BIN to QSPI, and reboots
  * 5. The bootloader applies the update from QSPI flash
  *
  * NOTE: The QSPI flash must have a valid MBR partition table
@@ -31,6 +33,7 @@ void setup() {
   Serial.println("Connected to WiFi");
 
   ArduinoOTA.setURL("http://192.168.1.100:8080/sketch.ota");
+  ArduinoOTA.setMagic(0x2341025B);  // Portenta H7
   ArduinoOTA.begin();
 
   Serial.println("Downloading firmware...");
