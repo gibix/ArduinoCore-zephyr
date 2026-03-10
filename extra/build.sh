@@ -76,25 +76,26 @@ fi
 BUILD_DIR=build/${variant}
 VARIANT_DIR=variants/${variant}
 
-# Seed auto_exports.c for pass 1.
-# Concrete symbols are kept alive via --undefined in CMakeLists.txt.
-# Only optional (?-prefixed) symbols need weak externs here.
+# Seed auto_exports.c from force_exports.txt so that sketch-facing symbols
+# survive --gc-sections in pass 1 (they have no other references).
+# Concrete symbols are also pulled from archives via --undefined in CMakeLists.txt.
 python3 -c "
-print('/* Seed — will be overwritten by gen_auto_exports.py */')
+print('/* Seed from force_exports.txt — will be overwritten by gen_auto_exports.py */')
 print('#include <zephyr/llext/symbol.h>')
 print('#define FORCE_EXPORT_SYM(name) \\\\')
 print('       extern __attribute__((weak)) void name(void); \\\\')
 print('       EXPORT_SYMBOL(name);')
 for line in open('loader/force_exports.txt'):
     line = line.strip()
+    if not line or line.startswith('#') or line.startswith('~'):
+        continue
     if line.startswith('?'):
-        print(f'FORCE_EXPORT_SYM({line[1:]})')
+        line = line[1:]
+    print(f'FORCE_EXPORT_SYM({line})')
 " > loader/auto_exports.c
 
-# Pass 1: build with --no-gc-sections so all Zephyr API symbols survive
-# for gen_auto_exports.py to discover via EDK headers.
 rm -rf ${BUILD_DIR}
-west build -d ${BUILD_DIR} -b ${target} loader -t llext-edk ${args} -- -DSEED_NO_GC:BOOL=ON
+west build -d ${BUILD_DIR} -b ${target} loader -t llext-edk ${args}
 
 # Extract EDK from first pass (needed for header-driven allowlist)
 (set -e ; cd ${BUILD_DIR} && rm -rf llext-edk && tar xf zephyr/llext-edk.tar.Z)
@@ -107,10 +108,8 @@ extra/gen_auto_exports.py "${BUILD_DIR}/zephyr/zephyr.elf" \
     -o loader/auto_exports.c \
     --log-excluded "${BUILD_DIR}/auto_exports_excluded.log"
 
-# Pass 2: rebuild with GC re-enabled (auto_exports.c EXPORT_SYMBOL references
-# now keep the needed symbols alive; --undefined from CMakeLists.txt handles
-# libc/compiler-rt archive pulling).
-west build -d ${BUILD_DIR} -t llext-edk -- -DSEED_NO_GC:BOOL=OFF
+# Incremental rebuild to include auto-generated exports
+west build -d ${BUILD_DIR} -t llext-edk
 
 # Extract the generated EDK tarball and copy it to the variant directory
 mkdir -p ${VARIANT_DIR} firmwares

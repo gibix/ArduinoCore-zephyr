@@ -42,20 +42,9 @@ target_compile_definitions(app PUBLIC _XOPEN_SOURCE=700)
 target_link_libraries(app PUBLIC blobs)
 
 # --- LLEXT symbol export support ---
-# In seed pass (pass 1), disable --gc-sections so all compiled symbols survive.
-# This lets gen_auto_exports.py discover Zephyr API symbols from EDK headers
-# without needing them listed in force_exports.txt.
-# --unresolved-symbols=ignore-all is needed because dead code kept by
-# --no-gc-sections may reference symbols not linked for this board config.
-if(SEED_NO_GC)
-    zephyr_link_libraries(
-        -Wl,--no-gc-sections
-        -Wl,--unresolved-symbols=ignore-all
-    )
-endif()
-
-# Read force_exports.txt and add --undefined for concrete symbols.
+# Read force_exports.txt and add --undefined for concrete (non-optional) symbols.
 # This pulls libc/compiler-rt from static archives and prevents GC.
+# Optional (?-prefixed) symbols use weak externs in the C seed instead.
 # The REGEX filter only selects lines starting with a letter or underscore,
 # automatically skipping comments (#), optional (?), patterns (~), and blanks.
 file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/force_exports.txt" _force_lines

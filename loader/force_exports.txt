@@ -1,27 +1,57 @@
-# Symbols to force-export that are not discoverable from EDK public headers.
-#
-# Zephyr API symbols (kernel, networking, USB, etc.) are auto-discovered
-# from EDK headers by gen_auto_exports.py and kept alive via --no-gc-sections
-# in pass 1, so they do NOT need to be listed here.
+# Symbols to force-export that would otherwise be garbage-collected or are
+# not found in EDK public headers.
 #
 # Line prefixes:
-#   ~   regex pattern (matched against all ELF symbols)
-#   ?   optional/board-specific (weak extern — no error if missing)
-#   (none) concrete symbol (--undefined pulls from archives)
+#   ~   regex pattern (matched against ELF symbols by gen_auto_exports.py)
+#   ?   optional/board-specific (weak extern, no link error if missing)
+#   (none) concrete symbol: --undefined pulls from archives, seed prevents GC
 #
 # Lines starting with '#' are comments. Blank lines are ignored.
 
-# --- Compiler runtime (regex patterns) ---
-~^__aeabi_
-~^__cxa_
-~^__stack_chk_
+# --- ARM compiler runtime helpers (not in any header) ---
+__aeabi_d2f
+__aeabi_d2iz
+__aeabi_d2lz
+__aeabi_d2uiz
+__aeabi_dadd
+__aeabi_dcmpeq
+__aeabi_dcmpge
+__aeabi_dcmpgt
+__aeabi_dcmple
+__aeabi_dcmplt
+__aeabi_dcmpun
+__aeabi_ddiv
+__aeabi_dmul
+__aeabi_dsub
+__aeabi_f2d
+__aeabi_fcmple
+__aeabi_fcmpun
+__aeabi_i2d
+__aeabi_idiv
+__aeabi_idivmod
+__aeabi_l2d
+__aeabi_l2f
+__aeabi_ldivmod
+__aeabi_ui2d
+__aeabi_uidiv
+__aeabi_uidivmod
+__aeabi_ul2d
+__aeabi_ul2f
+__aeabi_uldivmod
+
+# --- C++ ABI ---
+__cxa_pure_virtual
+
+# --- Stack canary support ---
+__stack_chk_guard
+__stack_chk_fail
 
 # --- Zephyr assert ---
 __assert_no_args
 
-# --- Zephyr logging (loader-defined symbols, not in EDK headers) ---
+# --- Zephyr logging (loader-defined module symbols) ---
 log_const_sketch
-log_dynamic_sketch
+?log_dynamic_sketch
 z_log_msg_runtime_vcreate
 
 # --- Libc: string.h ---
@@ -119,7 +149,149 @@ stdin
 stdout
 stderr
 
-# --- Board-specific (optional — only exist on certain boards) ---
+# --- Kernel APIs (may be GC'd if loader doesn't use them directly) ---
+k_malloc
+k_free
+k_sched_lock
+k_sched_unlock
+k_timer_init
+k_fatal_halt
+k_work_schedule
+?sys_clock_settime
+sys_clock_cycle_get_32
+
+# --- USB ---
+?usb_enable
+?usb_disable
+?cdc_acm_dte_rate_callback_set
+?usbd_init
+?usbd_add_descriptor
+?usbd_device_set_bcd_usb
+?usbd_msg_register_cb
+?usbd_device_set_code_triple
+?usbd_register_all_classes
+?usbd_add_configuration
+?usbd_caps_speed
+?usbd_can_detect_vbus
+?usbd_enable
+?usbd_disable
+
+# --- Networking ---
+?net_if_foreach
+?net_if_down
+?net_if_up
+?net_if_get_by_iface
+?net_if_ipv4_maddr_add
+?net_if_ipv4_maddr_join
+?net_if_ipv4_set_gw
+?net_if_ipv4_addr_add
+?net_if_ipv4_set_netmask
+?net_if_ipv4_set_netmask_by_addr
+?net_if_lookup_by_dev
+?net_dhcpv4_start
+?net_dhcpv4_add_option_callback
+?net_dhcpv4_server_start
+?net_mgmt_add_event_callback
+?net_mgmt_event_wait_on_iface
+
+# --- L2 / net_mgmt macro-generated symbols ---
+?_net_l2_ETHERNET
+?net_mgmt_NET_REQUEST_ETHERNET_SET_MAC_ADDRESS
+?net_mgmt_NET_REQUEST_WIFI_CONNECT
+?net_mgmt_NET_REQUEST_WIFI_IFACE_STATUS
+?net_mgmt_NET_REQUEST_WIFI_AP_ENABLE
+
+# --- TLS ---
+?tls_credential_add
+?tls_credential_get
+
+# --- WiFi ---
+?net_if_get_wifi_sta
+?net_if_get_wifi_sap
+
+# --- Sockets / POSIX ---
+?getaddrinfo
+?freeaddrinfo
+?socket
+?connect
+?send
+?recv
+?open
+?close
+?accept
+?bind
+?listen
+?inet_pton
+?sendto
+?recvfrom
+?setsockopt
+?getpeername
+?inet_ntop
+
+# --- Bluetooth ---
+?bt_enable_raw
+?bt_send
+?bt_buf_get_tx
+?net_buf_simple_pull
+?net_buf_simple_add_mem
+?net_buf_simple_pull_mem
+?net_buf_unref
+?bt_h4_vnd_setup
+?brcm_patchram_buf
+?brcm_patch_ram_length
+?bt_ctlr_set_public_addr
+
+# --- Ring buffer ---
+?ring_buf_get
+?ring_buf_peek
+?ring_buf_put
+?ring_buf_area_claim
+?ring_buf_area_finish
+
+# --- Video ---
+?video_buffer_aligned_alloc
+?video_buffer_alloc
+?video_buffer_release
+?video_set_ctrl
+
+# --- Input ---
+?zephyr_input_register_callback
+
+# --- Shared multi-heap ---
+?shared_multi_heap_aligned_alloc
+?shared_multi_heap_free
+?shared_multi_heap_alloc
+
+# --- Flash / filesystem ---
+?flash_area_open
+?flash_area_read
+?flash_area_write
+?flash_area_erase
+?flash_area_close
+?fs_open
+?fs_close
+?fs_unlink
+?fs_rename
+?fs_read
+?fs_write
+?fs_seek
+?fs_tell
+?fs_truncate
+?fs_sync
+?fs_mkdir
+?fs_opendir
+?fs_readdir
+?fs_closedir
+?fs_mount
+?fs_unmount
+?fs_readmount
+?fs_stat
+?fs_statvfs
+?fs_mkfs
+?fs_register
+?fs_unregister
+
+# --- Board-specific ---
 ?matrixBegin
 ?matrixWrite
 ?matrixPlay
