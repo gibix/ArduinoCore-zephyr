@@ -17,7 +17,7 @@
  * (present on boards previously used with the stock Arduino firmware).
  */
 
-#include <ArduinoOTA.h>
+#include <Arduino_OTA.h>
 #include <WiFi.h>
 #include "arduino_secrets.h"
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "ArduinoOTA.h"
+#include "Arduino_OTA.h"
 #include "lzss.h"
 
 #include <zephyr/net/socket.h>
