@@ -14,7 +14,7 @@
 #include <zephyr/kernel.h>
 
 #include <cmsis_core.h>
-#include <stm32h7xx_hal.h>
+#include <stm32h7xx.h>
 
 #include <errno.h>
 #include <string.h>
@@ -475,12 +475,13 @@ ArduinoOTAClass::Error ArduinoOTAClass::update()
     }
     _program_length = entry.size;
 
-    RTC_HandleTypeDef hrtc = { .Instance = RTC };
+    uint32_t rtc_base = (uint32_t)&(RTC->BKP0R);
 
-    HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR0, OTA_MAGIC_BOOT);
-    HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, OTA_STORAGE_TYPE);
-    HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR2, OTA_MBR_PART);
-    HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR3, _program_length);
+    // in EDK use this istead of HAL_RTCEx_BKUPWrite
+    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR0 * 4U) = OTA_MAGIC_BOOT;
+    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR1 * 4U) = OTA_STORAGE_TYPE;
+    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR2 * 4U) = OTA_MBR_PART;
+    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR3 * 4U) = _program_length;
 
     return Error::None;
 }
