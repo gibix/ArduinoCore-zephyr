@@ -13,7 +13,10 @@
 #include <zephyr/kernel.h>
 
 #include <cmsis_core.h>
+
+#if defined(CONFIG_SOC_SERIES_STM32H7X)
 #include <stm32h7xx.h>
+#endif
 
 #include <errno.h>
 #include <string.h>
@@ -24,9 +27,11 @@
 #define OTA_FILE_PATH    "/ota:/UPDATE.BIN"
 #define OTA_BUF_SIZE     4096
 
+#if defined(CONFIG_SOC_SERIES_STM32H7X)
 #define OTA_MAGIC_BOOT   0x07AA
 #define OTA_STORAGE_TYPE 0xA4   // QSPI_FLASH | FATFS | MBR
 #define OTA_MBR_PART     2
+#endif
 
 // CRC-32 table (IEEE, same as Arduino_Portenta_OTA)
 static const uint32_t crc_table[256] = {
@@ -77,8 +82,14 @@ ArduinoOTAClass ArduinoOTA;
 
 bool ArduinoOTAClass::isOtaCapable()
 {
+#if defined(CONFIG_SOC_SERIES_STM32H7X)
+    // STM32H7: check bootloader version at fixed address
     const uint8_t *bootloader_data = (const uint8_t *)(0x08000000 + 0x1F000);
     return bootloader_data[1] >= 22;
+#else
+    // C33: SFU is always present if properly flashed
+    return true;
+#endif
 }
 
 void ArduinoOTAClass::setURL(const char *url)
@@ -375,7 +386,8 @@ int ArduinoOTAClass::decompress()
 
     fs_close(&file);
 
-    // Decompress or copy to UPDATE.BIN
+#if defined(CONFIG_SOC_SERIES_STM32H7X)
+    // STM32H7: decompress LZSS -> UPDATE.BIN, delete .OTA temp file
     int32_t output_size;
     if (compressed) {
         struct fs_file_t in_file, out_file;
@@ -453,10 +465,17 @@ int ArduinoOTAClass::decompress()
     fs_unlink(OTA_TEMP_PATH);
     _program_length = (uint32_t)output_size;
     return (int)output_size;
+#else
+    // C33: SFU handles decompression on boot — leave .OTA file in place
+    _program_length = (uint32_t)(file_size - OTA_HEADER_SIZE);
+    return (int)_program_length;
+#endif
 }
 
 ArduinoOTAClass::Error ArduinoOTAClass::update()
 {
+#if defined(CONFIG_SOC_SERIES_STM32H7X)
+    // STM32H7: write RTC backup registers to signal bootloader
     struct fs_dirent entry;
     if (fs_stat(OTA_FILE_PATH, &entry) < 0) {
         _error = Error::OtaStorageOpen;
@@ -466,11 +485,13 @@ ArduinoOTAClass::Error ArduinoOTAClass::update()
 
     uint32_t rtc_base = (uint32_t)&(RTC->BKP0R);
 
-    // in EDK use this istead of HAL_RTCEx_BKUPWrite
+    // in EDK use this instead of HAL_RTCEx_BKUPWrite
     *(__IO uint32_t *)(rtc_base + RTC_BKP_DR0 * 4U) = OTA_MAGIC_BOOT;
     *(__IO uint32_t *)(rtc_base + RTC_BKP_DR1 * 4U) = OTA_STORAGE_TYPE;
     *(__IO uint32_t *)(rtc_base + RTC_BKP_DR2 * 4U) = OTA_MBR_PART;
     *(__IO uint32_t *)(rtc_base + RTC_BKP_DR3 * 4U) = _program_length;
+#endif
+    // C33: SFU checks for UPDATE.BIN.OTA on every boot — no action needed
 
     return Error::None;
 }
