@@ -25,6 +25,14 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
 
+  // check for the WiFi module:
+  if (WiFi.status() == WL_NO_SHIELD) {
+    Serial.println("Communication with WiFi module failed!");
+    // don't continue
+    while (true)
+      ;
+  }
+
   WiFi.begin(SECRET_SSID, SECRET_PASS);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);

@@ -36,6 +36,9 @@ public:
 
     void setURL(const char *url);
 
+    // Set CA certificate for HTTPS downloads (PEM format).
+    void setCACert(const char *ca_cert_pem);
+
     // Set expected board magic number for verification.
     // If not set, magic check is skipped.
     void setMagic(uint32_t magic);
@@ -56,6 +59,8 @@ private:
     int httpDownload(const char *filepath);
 
     const char *_url = nullptr;
+    const char *_ca_cert = nullptr;
+    bool _use_tls = false;
     char _host[128];
     char _path[256];
     uint16_t _port = 80;

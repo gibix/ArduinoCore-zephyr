@@ -7,9 +7,8 @@
 #include "Arduino_OTA.h"
 #include "lzss.h"
 
-#include <zephyr/net/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
+#include <Arduino.h>
+#include <SocketWrapper.h>
 #include <zephyr/fs/fs.h>
 #include <zephyr/kernel.h>
 
@@ -94,6 +93,11 @@ void ArduinoOTAClass::setMagic(uint32_t magic)
     _magic_set = true;
 }
 
+void ArduinoOTAClass::setCACert(const char *ca_cert_pem)
+{
+    _ca_cert = ca_cert_pem;
+}
+
 ArduinoOTAClass::Error ArduinoOTAClass::begin()
 {
     _program_length = 0;
@@ -121,11 +125,16 @@ int ArduinoOTAClass::parseURL()
     }
 
     const char *p = _url;
-    if (strncmp(p, "http://", 7) != 0) {
+    if (strncmp(p, "https://", 8) == 0) {
+        _use_tls = true;
+        p += 8;
+    } else if (strncmp(p, "http://", 7) == 0) {
+        _use_tls = false;
+        p += 7;
+    } else {
         _error = Error::OtaDownload;
         return -1;
     }
-    p += 7;
 
     const char *host_start = p;
     const char *colon = nullptr;
@@ -152,7 +161,7 @@ int ArduinoOTAClass::parseURL()
     memcpy(_host, host_start, host_len);
     _host[host_len] = '\0';
 
-    _port = colon ? (uint16_t)atoi(colon + 1) : 80;
+    _port = colon ? (uint16_t)atoi(colon + 1) : (_use_tls ? 443 : 80);
 
     if (slash) {
         size_t path_len = strlen(slash);
@@ -173,31 +182,19 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
 {
     if (parseURL() != 0) return -1;
 
-    struct addrinfo hints = {};
-    struct addrinfo *res = nullptr;
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
+    ZephyrSocketWrapper sock;
+    bool connected;
 
-    char port_str[8];
-    snprintf(port_str, sizeof(port_str), "%u", _port);
-
-    int ret = getaddrinfo(_host, port_str, &hints, &res);
-    if (ret != 0 || res == nullptr) {
-        _error = Error::OtaDownload;
-        return -1;
+#if defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS)
+    if (_use_tls) {
+        connected = sock.connectSSL(_host, _port, _ca_cert);
+    } else
+#endif
+    {
+        connected = sock.connect(_host, _port);
     }
 
-    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (sock < 0) {
-        freeaddrinfo(res);
-        _error = Error::OtaDownload;
-        return -1;
-    }
-
-    ret = connect(sock, res->ai_addr, res->ai_addrlen);
-    freeaddrinfo(res);
-    if (ret < 0) {
-        zsock_close(sock);
+    if (!connected) {
         _error = Error::OtaDownload;
         return -1;
     }
@@ -207,9 +204,8 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
         "GET %s HTTP/1.1\r\nHost: %s:%u\r\nConnection: close\r\n\r\n",
         _path, _host, _port);
 
-    ret = send(sock, req_buf, req_len, 0);
+    int ret = sock.send((const uint8_t *)req_buf, req_len);
     if (ret < 0) {
-        zsock_close(sock);
         _error = Error::OtaDownload;
         return -1;
     }
@@ -221,9 +217,9 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     uint32_t content_length = 0;
 
     while (total_hdr < (int)sizeof(buf) - 1) {
-        ssize_t n = recv(sock, buf + total_hdr, sizeof(buf) - 1 - total_hdr, 0);
+        int n = sock.recv(buf + total_hdr, sizeof(buf) - 1 - total_hdr, 0);
+        if (n == -EAGAIN || n == -EWOULDBLOCK) continue;
         if (n <= 0) {
-            zsock_close(sock);
             _error = Error::OtaDownload;
             return -1;
         }
@@ -238,19 +234,16 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     }
 
     if (hdr_end < 0) {
-        zsock_close(sock);
         _error = Error::OtaDownload;
         return -1;
     }
 
     if (strncmp((char *)buf, "HTTP/1.", 7) != 0) {
-        zsock_close(sock);
         _error = Error::OtaDownload;
         return -1;
     }
     int status_code = atoi((char *)buf + 9);
     if (status_code != 200) {
-        zsock_close(sock);
         _error = Error::OtaDownload;
         return -1;
     }
@@ -261,7 +254,6 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
         content_length = (uint32_t)atol(cl + 15);
     }
     if (content_length == 0) {
-        zsock_close(sock);
         _error = Error::OtaDownload;
         return -1;
     }
@@ -271,7 +263,6 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     fs_file_t_init(&file);
     ret = fs_open(&file, filepath, FS_O_CREATE | FS_O_WRITE);
     if (ret < 0) {
-        zsock_close(sock);
         _error = Error::OtaStorageOpen;
         return -1;
     }
@@ -283,7 +274,6 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
         ret = fs_write(&file, buf + hdr_end, body_in_buf);
         if (ret < 0) {
             fs_close(&file);
-            zsock_close(sock);
             _error = Error::OtaDownload;
             return -1;
         }
@@ -293,12 +283,12 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     // Stream remaining body
     while (written < content_length) {
         feedWatchdog();
-        ssize_t n = recv(sock, buf, sizeof(buf), 0);
+        int n = sock.recv(buf, sizeof(buf), 0);
+        if (n == -EAGAIN || n == -EWOULDBLOCK) continue;
         if (n <= 0) break;
         ret = fs_write(&file, buf, n);
         if (ret < 0) {
             fs_close(&file);
-            zsock_close(sock);
             _error = Error::OtaDownload;
             return -1;
         }
@@ -306,7 +296,6 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     }
 
     fs_close(&file);
-    zsock_close(sock);
 
     if (written != content_length) {
         _error = Error::OtaDownload;
