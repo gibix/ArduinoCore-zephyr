@@ -37,6 +37,8 @@ func main() {
 }
 
 func doMerge() {
+	sfuPath := flag.String("sfu", "", "SFU binary to prepend before loader (for C33)")
+	sfuSizeStr := flag.String("sfu-size", "0x20000", "SFU partition size in hex (default 128KB)")
 	loaderPath := flag.String("loader", "", "loader binary path")
 	sketchPath := flag.String("sketch", "", "sketch binary path")
 	offsetStr := flag.String("offset", "", "sketch offset in merged binary (hex)")
@@ -47,6 +49,9 @@ func doMerge() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s -loader <file> -sketch <file> -offset <hex> -output <file> [options]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Creates an OTA update file with header and LZSS compression.\n\n")
+		fmt.Fprintf(os.Stderr, "For boards with SFU (e.g. Portenta C33), use -sfu to prepend the SFU\n")
+		fmt.Fprintf(os.Stderr, "binary before the loader. The offset is from the start of the merged\n")
+		fmt.Fprintf(os.Stderr, "binary (including SFU).\n\n")
 		flag.PrintDefaults()
 	}
 
@@ -68,6 +73,30 @@ func doMerge() {
 
 	sketch, err := os.ReadFile(*sketchPath)
 	fatal(err, "read sketch")
+
+	// If SFU is specified, prepend it before the loader with 0xFF padding
+	if *sfuPath != "" {
+		sfuSize, err := parseHex(*sfuSizeStr)
+		fatal(err, "parse sfu-size")
+
+		sfu, err := os.ReadFile(*sfuPath)
+		fatal(err, "read sfu")
+
+		if int64(len(sfu)) > sfuSize {
+			fatalf("SFU binary size (%d bytes) exceeds SFU partition size (0x%X)", len(sfu), sfuSize)
+		}
+
+		// Build combined: [sfu | 0xFF pad to sfuSize | loader]
+		combined := make([]byte, sfuSize+int64(len(loader)))
+		copy(combined, sfu)
+		for i := len(sfu); i < int(sfuSize); i++ {
+			combined[i] = 0xFF
+		}
+		copy(combined[sfuSize:], loader)
+
+		fmt.Printf("SFU: %d bytes (padded to 0x%X), loader: %d bytes\n", len(sfu), sfuSize, len(loader))
+		loader = combined
+	}
 
 	if int64(len(loader)) > offset {
 		fatalf("loader size (%d bytes) exceeds offset (0x%X)", len(loader), offset)

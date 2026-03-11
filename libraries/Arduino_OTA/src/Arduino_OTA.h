@@ -45,8 +45,8 @@ public:
 
     Error begin();            // check bootloader + verify storage accessible
     int download();           // HTTP GET -> temp file (returns bytes written, or negative Error)
-    int decompress();         // verify header+CRC -> LZSS -> UPDATE.BIN (returns decompressed size, or negative Error)
-    Error update();           // write RTC backup registers
+    int decompress();         // verify header+CRC; STM32H7: LZSS -> UPDATE.BIN; C33: leave .OTA for SFU
+    Error update();           // STM32H7: write RTC backup registers; C33: no-op (SFU checks on boot)
     void reset();             // NVIC_SystemReset (does not return)
 
     void setFeedWatchdogFunc(void (*func)(void));
