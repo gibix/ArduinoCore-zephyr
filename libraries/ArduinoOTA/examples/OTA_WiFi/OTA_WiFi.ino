@@ -34,18 +34,44 @@ void setup() {
 
   ArduinoOTA.setURL("http://192.168.1.100:8080/sketch.ota");
   ArduinoOTA.setMagic(0x2341025B);  // Portenta H7
-  ArduinoOTA.begin();
 
-  Serial.println("Downloading firmware...");
-  int err = ArduinoOTA.download();
-  if (err == 0) {
-    Serial.println("Download OK, applying update...");
-    delay(500);
-    ArduinoOTA.update();  // reboots, does not return
-  } else {
-    Serial.print("Error: ");
+  if (ArduinoOTA.begin() != ArduinoOTAClass::Error::None) {
+    Serial.print("Begin failed: ");
     Serial.println(ArduinoOTA.errorString());
+    return;
   }
+
+  Serial.println("Downloading...");
+  int bytes = ArduinoOTA.download();
+  if (bytes < 0) {
+    Serial.print("Download failed: ");
+    Serial.println(ArduinoOTA.errorString());
+    return;
+  }
+  Serial.print("Downloaded ");
+  Serial.print(bytes);
+  Serial.println(" bytes");
+
+  Serial.println("Verifying and decompressing...");
+  int size = ArduinoOTA.decompress();
+  if (size < 0) {
+    Serial.print("Decompress failed: ");
+    Serial.println(ArduinoOTA.errorString());
+    return;
+  }
+  Serial.print("Decompressed size: ");
+  Serial.print(size);
+  Serial.println(" bytes");
+
+  if (ArduinoOTA.update() != ArduinoOTAClass::Error::None) {
+    Serial.print("Update failed: ");
+    Serial.println(ArduinoOTA.errorString());
+    return;
+  }
+
+  Serial.println("Rebooting...");
+  delay(500);
+  ArduinoOTA.reset();
 }
 
 void loop() {

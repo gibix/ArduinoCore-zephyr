@@ -22,23 +22,38 @@ struct OTAHeader {
 
 class ArduinoOTAClass {
 public:
+    enum class Error : int {
+        None                 =  0,
+        NoCapableBootloader  = -1,
+        OtaStorageInit       = -3,
+        OtaStorageOpen       = -4,
+        OtaHeaderLength      = -5,
+        OtaHeaderCrc         = -6,
+        OtaDownload          = -12,
+    };
+
+    static bool isOtaCapable();
+
     void setURL(const char *url);
 
     // Set expected board magic number for verification.
     // If not set, magic check is skipped.
     void setMagic(uint32_t magic);
 
-    int begin();
-    int download();       // returns 0 on success, negative on error
-    void update();        // sets RTC registers + reboots (does not return)
+    Error begin();            // check bootloader + verify storage accessible
+    int download();           // HTTP GET -> temp file (returns bytes written, or negative Error)
+    int decompress();         // verify header+CRC -> LZSS -> UPDATE.BIN (returns decompressed size, or negative Error)
+    Error update();           // write RTC backup registers
+    void reset();             // NVIC_SystemReset (does not return)
+
+    void setFeedWatchdogFunc(void (*func)(void));
+    void feedWatchdog();
+
     const char* errorString();
 
 private:
     int parseURL();
     int httpDownload(const char *filepath);
-    int verifyOTA(const char *filepath, bool *compressed);
-    int decompressOTA(const char *src, const char *dst);
-    int copyFile(const char *src, const char *dst);
 
     const char *_url = nullptr;
     char _host[128];
@@ -47,7 +62,8 @@ private:
     uint32_t _program_length = 0;
     uint32_t _magic = 0;
     bool _magic_set = false;
-    const char *_error = nullptr;
+    Error _error = Error::None;
+    void (*_feed_watchdog_func)(void) = nullptr;
 };
 
 extern ArduinoOTAClass ArduinoOTA;

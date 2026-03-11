@@ -76,10 +76,16 @@ static uint32_t crc_update(uint32_t crc, const void *data, size_t len)
 
 ArduinoOTAClass ArduinoOTA;
 
+bool ArduinoOTAClass::isOtaCapable()
+{
+    const uint8_t *bootloader_data = (const uint8_t *)(0x08000000 + 0x1F000);
+    return bootloader_data[1] >= 22;
+}
+
 void ArduinoOTAClass::setURL(const char *url)
 {
     _url = url;
-    _error = nullptr;
+    _error = Error::None;
 }
 
 void ArduinoOTAClass::setMagic(uint32_t magic)
@@ -88,23 +94,35 @@ void ArduinoOTAClass::setMagic(uint32_t magic)
     _magic_set = true;
 }
 
-int ArduinoOTAClass::begin()
+ArduinoOTAClass::Error ArduinoOTAClass::begin()
 {
     _program_length = 0;
-    _error = nullptr;
-    return 0;
+    _error = Error::None;
+
+    if (!isOtaCapable()) {
+        _error = Error::NoCapableBootloader;
+        return _error;
+    }
+
+    struct fs_statvfs stat;
+    if (fs_statvfs("/ota:", &stat) < 0) {
+        _error = Error::OtaStorageInit;
+        return _error;
+    }
+
+    return Error::None;
 }
 
 int ArduinoOTAClass::parseURL()
 {
     if (_url == nullptr) {
-        _error = "URL not set";
+        _error = Error::OtaDownload;
         return -1;
     }
 
     const char *p = _url;
     if (strncmp(p, "http://", 7) != 0) {
-        _error = "only http:// URLs supported";
+        _error = Error::OtaDownload;
         return -1;
     }
     p += 7;
@@ -128,7 +146,7 @@ int ArduinoOTAClass::parseURL()
                     : strlen(host_start);
 
     if (host_len == 0 || host_len >= sizeof(_host)) {
-        _error = "host too long or empty";
+        _error = Error::OtaDownload;
         return -1;
     }
     memcpy(_host, host_start, host_len);
@@ -139,7 +157,7 @@ int ArduinoOTAClass::parseURL()
     if (slash) {
         size_t path_len = strlen(slash);
         if (path_len >= sizeof(_path)) {
-            _error = "path too long";
+            _error = Error::OtaDownload;
             return -1;
         }
         memcpy(_path, slash, path_len + 1);
@@ -165,14 +183,14 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
 
     int ret = getaddrinfo(_host, port_str, &hints, &res);
     if (ret != 0 || res == nullptr) {
-        _error = "DNS resolution failed";
+        _error = Error::OtaDownload;
         return -1;
     }
 
     int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (sock < 0) {
         freeaddrinfo(res);
-        _error = "socket() failed";
+        _error = Error::OtaDownload;
         return -1;
     }
 
@@ -180,7 +198,7 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     freeaddrinfo(res);
     if (ret < 0) {
         zsock_close(sock);
-        _error = "connect() failed";
+        _error = Error::OtaDownload;
         return -1;
     }
 
@@ -192,7 +210,7 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     ret = send(sock, req_buf, req_len, 0);
     if (ret < 0) {
         zsock_close(sock);
-        _error = "send() failed";
+        _error = Error::OtaDownload;
         return -1;
     }
 
@@ -206,7 +224,7 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
         ssize_t n = recv(sock, buf + total_hdr, sizeof(buf) - 1 - total_hdr, 0);
         if (n <= 0) {
             zsock_close(sock);
-            _error = "recv() failed during headers";
+            _error = Error::OtaDownload;
             return -1;
         }
         total_hdr += n;
@@ -221,19 +239,19 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
 
     if (hdr_end < 0) {
         zsock_close(sock);
-        _error = "headers too large or missing";
+        _error = Error::OtaDownload;
         return -1;
     }
 
     if (strncmp((char *)buf, "HTTP/1.", 7) != 0) {
         zsock_close(sock);
-        _error = "invalid HTTP response";
+        _error = Error::OtaDownload;
         return -1;
     }
     int status_code = atoi((char *)buf + 9);
     if (status_code != 200) {
         zsock_close(sock);
-        _error = "HTTP status not 200";
+        _error = Error::OtaDownload;
         return -1;
     }
 
@@ -244,7 +262,7 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     }
     if (content_length == 0) {
         zsock_close(sock);
-        _error = "missing or zero Content-Length";
+        _error = Error::OtaDownload;
         return -1;
     }
 
@@ -254,7 +272,7 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     ret = fs_open(&file, filepath, FS_O_CREATE | FS_O_WRITE);
     if (ret < 0) {
         zsock_close(sock);
-        _error = "fs_open() failed";
+        _error = Error::OtaStorageOpen;
         return -1;
     }
 
@@ -266,7 +284,7 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
         if (ret < 0) {
             fs_close(&file);
             zsock_close(sock);
-            _error = "fs_write() failed";
+            _error = Error::OtaDownload;
             return -1;
         }
         written += body_in_buf;
@@ -274,13 +292,14 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
 
     // Stream remaining body
     while (written < content_length) {
+        feedWatchdog();
         ssize_t n = recv(sock, buf, sizeof(buf), 0);
         if (n <= 0) break;
         ret = fs_write(&file, buf, n);
         if (ret < 0) {
             fs_close(&file);
             zsock_close(sock);
-            _error = "fs_write() failed";
+            _error = Error::OtaDownload;
             return -1;
         }
         written += n;
@@ -290,160 +309,172 @@ int ArduinoOTAClass::httpDownload(const char *filepath)
     zsock_close(sock);
 
     if (written != content_length) {
-        _error = "incomplete download";
+        _error = Error::OtaDownload;
         return -1;
     }
 
-    return 0;
+    return (int)written;
 }
 
-int ArduinoOTAClass::verifyOTA(const char *filepath, bool *compressed)
+int ArduinoOTAClass::download()
 {
+    int ret = httpDownload(OTA_TEMP_PATH);
+    if (ret < 0) return (int)_error;
+    return ret;
+}
+
+int ArduinoOTAClass::decompress()
+{
+    _error = Error::None;
+
+    // Open temp file
     struct fs_file_t file;
     fs_file_t_init(&file);
-    int ret = fs_open(&file, filepath, FS_O_READ);
+    int ret = fs_open(&file, OTA_TEMP_PATH, FS_O_READ);
     if (ret < 0) {
-        _error = "cannot open OTA file";
-        return -1;
+        _error = Error::OtaStorageOpen;
+        return (int)_error;
     }
+
+    // Get file size
+    fs_seek(&file, 0, FS_SEEK_END);
+    off_t file_size = fs_tell(&file);
+    fs_seek(&file, 0, FS_SEEK_SET);
 
     // Read header
     OTAHeader hdr;
     if (fs_read(&file, &hdr, OTA_HEADER_SIZE) != OTA_HEADER_SIZE) {
         fs_close(&file);
-        _error = "cannot read OTA header";
-        return -1;
+        _error = Error::OtaHeaderLength;
+        return (int)_error;
     }
 
     // Check magic
     if (_magic_set && hdr.magic_number != _magic) {
         fs_close(&file);
-        _error = "wrong board magic number";
-        return -1;
+        _error = Error::OtaHeaderCrc;
+        return (int)_error;
     }
 
-    *compressed = (hdr.version[0] & OTA_FLAG_COMPRESS) != 0;
+    // Validate header length field: hdr.len == file_size - 8
+    if ((off_t)hdr.len != file_size - 8) {
+        fs_close(&file);
+        _error = Error::OtaHeaderLength;
+        return (int)_error;
+    }
+
+    bool compressed = (hdr.version[0] & OTA_FLAG_COMPRESS) != 0;
 
     // Verify CRC-32: covers file[8:] (magic + version + payload)
     fs_seek(&file, 8, FS_SEEK_SET);
     uint32_t crc = 0xFFFFFFFF;
     uint8_t buf[512];
     ssize_t n;
+    int chunk_count = 0;
     while ((n = fs_read(&file, buf, sizeof(buf))) > 0) {
         crc = crc_update(crc, buf, n);
+        if (++chunk_count % 16 == 0)
+            feedWatchdog();
     }
     crc ^= 0xFFFFFFFF;
 
     if (crc != hdr.crc32) {
         fs_close(&file);
-        _error = "CRC-32 mismatch";
-        return -1;
+        _error = Error::OtaHeaderCrc;
+        return (int)_error;
     }
 
     fs_close(&file);
-    return 0;
-}
 
-int ArduinoOTAClass::decompressOTA(const char *src, const char *dst)
-{
-    struct fs_file_t in_file, out_file;
-    fs_file_t_init(&in_file);
-    fs_file_t_init(&out_file);
-
-    int ret = fs_open(&in_file, src, FS_O_READ);
-    if (ret < 0) {
-        _error = "cannot open OTA temp file";
-        return -1;
-    }
-
-    ret = fs_open(&out_file, dst, FS_O_CREATE | FS_O_WRITE);
-    if (ret < 0) {
-        fs_close(&in_file);
-        _error = "cannot create UPDATE.BIN";
-        return -1;
-    }
-
-    // Seek past header (20 bytes)
-    fs_seek(&in_file, OTA_HEADER_SIZE, FS_SEEK_SET);
-
-    int32_t decompressed_size = lzss_decompress(&in_file, &out_file);
-
-    fs_close(&in_file);
-    fs_close(&out_file);
-
-    if (decompressed_size < 0) {
-        _error = "LZSS decompression failed";
-        return -1;
-    }
-
-    _program_length = (uint32_t)decompressed_size;
-    return 0;
-}
-
-int ArduinoOTAClass::copyFile(const char *src, const char *dst)
-{
-    struct fs_file_t in_file, out_file;
-    fs_file_t_init(&in_file);
-    fs_file_t_init(&out_file);
-
-    int ret = fs_open(&in_file, src, FS_O_READ);
-    if (ret < 0) return -1;
-
-    ret = fs_open(&out_file, dst, FS_O_CREATE | FS_O_WRITE);
-    if (ret < 0) {
-        fs_close(&in_file);
-        return -1;
-    }
-
-    fs_seek(&in_file, OTA_HEADER_SIZE, FS_SEEK_SET);
-
-    uint8_t buf[512];
-    ssize_t n;
-    uint32_t total = 0;
-    while ((n = fs_read(&in_file, buf, sizeof(buf))) > 0) {
-        if (fs_write(&out_file, buf, n) != n) {
-            fs_close(&in_file);
-            fs_close(&out_file);
-            return -1;
-        }
-        total += n;
-    }
-
-    fs_close(&in_file);
-    fs_close(&out_file);
-    _program_length = total;
-    return 0;
-}
-
-int ArduinoOTAClass::download()
-{
-    // Step 1: Download .ota file to temp location
-    int ret = httpDownload(OTA_TEMP_PATH);
-    if (ret < 0) return ret;
-
-    // Step 2: Verify header and CRC
-    bool compressed = false;
-    ret = verifyOTA(OTA_TEMP_PATH, &compressed);
-    if (ret < 0) {
-        fs_unlink(OTA_TEMP_PATH);
-        return ret;
-    }
-
-    // Step 3: Decompress or copy to UPDATE.BIN
+    // Decompress or copy to UPDATE.BIN
+    int32_t output_size;
     if (compressed) {
-        ret = decompressOTA(OTA_TEMP_PATH, OTA_FILE_PATH);
+        struct fs_file_t in_file, out_file;
+        fs_file_t_init(&in_file);
+        fs_file_t_init(&out_file);
+
+        ret = fs_open(&in_file, OTA_TEMP_PATH, FS_O_READ);
+        if (ret < 0) {
+            _error = Error::OtaStorageOpen;
+            fs_unlink(OTA_TEMP_PATH);
+            return (int)_error;
+        }
+
+        ret = fs_open(&out_file, OTA_FILE_PATH, FS_O_CREATE | FS_O_WRITE);
+        if (ret < 0) {
+            fs_close(&in_file);
+            _error = Error::OtaStorageOpen;
+            fs_unlink(OTA_TEMP_PATH);
+            return (int)_error;
+        }
+
+        fs_seek(&in_file, OTA_HEADER_SIZE, FS_SEEK_SET);
+        output_size = lzss_decompress(&in_file, &out_file);
+
+        fs_close(&in_file);
+        fs_close(&out_file);
+
+        if (output_size < 0) {
+            _error = Error::OtaHeaderCrc;
+            fs_unlink(OTA_TEMP_PATH);
+            return (int)_error;
+        }
     } else {
-        ret = copyFile(OTA_TEMP_PATH, OTA_FILE_PATH);
+        // Copy payload (skip header) to UPDATE.BIN
+        struct fs_file_t in_file, out_file;
+        fs_file_t_init(&in_file);
+        fs_file_t_init(&out_file);
+
+        ret = fs_open(&in_file, OTA_TEMP_PATH, FS_O_READ);
+        if (ret < 0) {
+            _error = Error::OtaStorageOpen;
+            fs_unlink(OTA_TEMP_PATH);
+            return (int)_error;
+        }
+
+        ret = fs_open(&out_file, OTA_FILE_PATH, FS_O_CREATE | FS_O_WRITE);
+        if (ret < 0) {
+            fs_close(&in_file);
+            _error = Error::OtaStorageOpen;
+            fs_unlink(OTA_TEMP_PATH);
+            return (int)_error;
+        }
+
+        fs_seek(&in_file, OTA_HEADER_SIZE, FS_SEEK_SET);
+
+        uint32_t total = 0;
+        while ((n = fs_read(&in_file, buf, sizeof(buf))) > 0) {
+            if (fs_write(&out_file, buf, n) != n) {
+                fs_close(&in_file);
+                fs_close(&out_file);
+                _error = Error::OtaStorageOpen;
+                fs_unlink(OTA_TEMP_PATH);
+                return (int)_error;
+            }
+            total += n;
+            if (total % (512 * 16) == 0)
+                feedWatchdog();
+        }
+
+        fs_close(&in_file);
+        fs_close(&out_file);
+        output_size = (int32_t)total;
     }
 
     fs_unlink(OTA_TEMP_PATH);
-
-    if (ret < 0) return ret;
-    return 0;
+    _program_length = (uint32_t)output_size;
+    return (int)output_size;
 }
 
-void ArduinoOTAClass::update()
+ArduinoOTAClass::Error ArduinoOTAClass::update()
 {
+    struct fs_dirent entry;
+    if (fs_stat(OTA_FILE_PATH, &entry) < 0) {
+        _error = Error::OtaStorageOpen;
+        return _error;
+    }
+    _program_length = entry.size;
+
     uint32_t rtc_base = (uint32_t)&(RTC->BKP0R);
 
     *(__IO uint32_t *)(rtc_base + RTC_BKP_DR0 * 4U) = OTA_MAGIC_BOOT;
@@ -451,10 +482,34 @@ void ArduinoOTAClass::update()
     *(__IO uint32_t *)(rtc_base + RTC_BKP_DR2 * 4U) = OTA_MBR_PART;
     *(__IO uint32_t *)(rtc_base + RTC_BKP_DR3 * 4U) = _program_length;
 
+    return Error::None;
+}
+
+void ArduinoOTAClass::reset()
+{
     NVIC_SystemReset();
+}
+
+void ArduinoOTAClass::setFeedWatchdogFunc(void (*func)(void))
+{
+    _feed_watchdog_func = func;
+}
+
+void ArduinoOTAClass::feedWatchdog()
+{
+    if (_feed_watchdog_func) _feed_watchdog_func();
 }
 
 const char* ArduinoOTAClass::errorString()
 {
-    return _error ? _error : "no error";
+    switch (_error) {
+    case Error::None:                return "no error";
+    case Error::NoCapableBootloader: return "bootloader not OTA capable (version < 22)";
+    case Error::OtaStorageInit:      return "OTA storage init failed";
+    case Error::OtaStorageOpen:      return "OTA storage open failed";
+    case Error::OtaHeaderLength:     return "OTA header length mismatch";
+    case Error::OtaHeaderCrc:        return "OTA header CRC mismatch";
+    case Error::OtaDownload:         return "OTA download failed";
+    default:                         return "unknown error";
+    }
 }
