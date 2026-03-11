@@ -71,6 +71,10 @@ giga.debug.server.openocd.scripts.2=target/stm32h7x_dual_bank.cfg
 giga.debug.cortex-debug.custom.request=attach
 giga.debug.svd_file={runtime.platform.path}/svd/STM32H747_CM7.svd
 
+giga.build.ota.sketch_offset=0xA0000
+giga.build.ota.magic=0x23410266
+giga.build.ota.merge_command="{runtime.tools.ota-merge.path}/ota-merge" -loader "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" -sketch "{build.path}/{build.project_name}.{upload.extension}" -offset {build.ota.sketch_offset} -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
+
 ##########################################################################################
 
 nano33ble.name=Arduino Nano 33 BLE
@@ -564,6 +568,10 @@ opta.debug.server.openocd.scripts.1={programmer.transport_script}
 opta.debug.server.openocd.scripts.2=target/stm32h7x_dual_bank.cfg
 opta.debug.cortex-debug.custom.request=attach
 opta.debug.svd_file={runtime.platform.path}/svd/STM32H747_CM7.svd
+
+opta.build.ota.sketch_offset=0xA0000
+opta.build.ota.magic=0x23410064
+opta.build.ota.merge_command="{runtime.tools.ota-merge.path}/ota-merge" -loader "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" -sketch "{build.path}/{build.project_name}.{upload.extension}" -offset {build.ota.sketch_offset} -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
 
 ##########################################################################################
 
