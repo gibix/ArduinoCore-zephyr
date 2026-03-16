@@ -16,4 +16,3 @@ doc/
 cores/
 libraries/
 variants/_ldscripts/
-loader/blobs/

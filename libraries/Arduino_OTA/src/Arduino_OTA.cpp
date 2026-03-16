@@ -12,26 +12,14 @@
 #include <zephyr/fs/fs.h>
 #include <zephyr/kernel.h>
 
-#include <cmsis_core.h>
-
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-#include <stm32h7xx.h>
-#endif
-
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#define OTA_BUF_SIZE     4096
 #define OTA_TEMP_PATH    "/ota:/UPDATE.BIN.OTA"
 #define OTA_FILE_PATH    "/ota:/UPDATE.BIN"
-#define OTA_BUF_SIZE     4096
-
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-#define OTA_MAGIC_BOOT   0x07AA
-#define OTA_STORAGE_TYPE 0xA4   // QSPI_FLASH | FATFS | MBR
-#define OTA_MBR_PART     2
-#endif
 
 // CRC-32 table (IEEE, same as Arduino_Portenta_OTA)
 static const uint32_t crc_table[256] = {
@@ -69,7 +57,7 @@ static const uint32_t crc_table[256] = {
     0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-static uint32_t crc_update(uint32_t crc, const void *data, size_t len)
+uint32_t ArduinoOTAClass::crc_update(uint32_t crc, const void *data, size_t len)
 {
     const uint8_t *d = (const uint8_t *)data;
     while (len--) {
@@ -78,54 +66,15 @@ static uint32_t crc_update(uint32_t crc, const void *data, size_t len)
     return crc;
 }
 
-ArduinoOTAClass ArduinoOTA;
-
-bool ArduinoOTAClass::isOtaCapable()
-{
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-    // STM32H7: check bootloader version at fixed address
-    const uint8_t *bootloader_data = (const uint8_t *)(0x08000000 + 0x1F000);
-    return bootloader_data[1] >= 22;
-#else
-    // C33: SFU is always present if properly flashed
-    return true;
-#endif
-}
-
 void ArduinoOTAClass::setURL(const char *url)
 {
     _url = url;
     _error = Error::None;
 }
 
-void ArduinoOTAClass::setMagic(uint32_t magic)
-{
-    _magic = magic;
-    _magic_set = true;
-}
-
 void ArduinoOTAClass::setCACert(const char *ca_cert_pem)
 {
     _ca_cert = ca_cert_pem;
-}
-
-ArduinoOTAClass::Error ArduinoOTAClass::begin()
-{
-    _program_length = 0;
-    _error = Error::None;
-
-    if (!isOtaCapable()) {
-        _error = Error::NoCapableBootloader;
-        return _error;
-    }
-
-    struct fs_statvfs stat;
-    if (fs_statvfs("/ota:", &stat) < 0) {
-        _error = Error::OtaStorageInit;
-        return _error;
-    }
-
-    return Error::None;
 }
 
 int ArduinoOTAClass::parseURL()
@@ -323,11 +272,30 @@ int ArduinoOTAClass::download()
     return ret;
 }
 
+bool ArduinoOTAClass::isOtaCapable() { return false; }
+ArduinoOTAClass::Error ArduinoOTAClass::begin() { return Error::NoOtaStorage; }
+ArduinoOTAClass::Error ArduinoOTAClass::update() { return Error::NoOtaStorage; }
+void ArduinoOTAClass::reset() {}
+
+int32_t ArduinoOTAClass::filecopy(struct fs_file_t *in, struct fs_file_t *out)
+{
+    uint8_t buf[512];
+    int32_t total = 0;
+    ssize_t n;
+    while ((n = fs_read(in, buf, sizeof(buf))) > 0) {
+        if (fs_write(out, buf, n) != n) return -1;
+        total += n;
+        if (total % (512 * 16) == 0)
+            feedWatchdog();
+    }
+    return total;
+}
+
 int ArduinoOTAClass::decompress()
 {
     _error = Error::None;
 
-    // Open temp file
+    // Open temp file and validate header
     struct fs_file_t file;
     fs_file_t_init(&file);
     int ret = fs_open(&file, OTA_TEMP_PATH, FS_O_READ);
@@ -336,12 +304,10 @@ int ArduinoOTAClass::decompress()
         return (int)_error;
     }
 
-    // Get file size
     fs_seek(&file, 0, FS_SEEK_END);
     off_t file_size = fs_tell(&file);
     fs_seek(&file, 0, FS_SEEK_SET);
 
-    // Read header
     OTAHeader hdr;
     if (fs_read(&file, &hdr, OTA_HEADER_SIZE) != OTA_HEADER_SIZE) {
         fs_close(&file);
@@ -349,14 +315,14 @@ int ArduinoOTAClass::decompress()
         return (int)_error;
     }
 
-    // Check magic
-    if (_magic_set && hdr.magic_number != _magic) {
+#if defined(OTA_BOARD_MAGIC)
+    if (hdr.magic_number != OTA_BOARD_MAGIC) {
         fs_close(&file);
         _error = Error::OtaHeaderCrc;
         return (int)_error;
     }
+#endif
 
-    // Validate header length field: hdr.len == file_size - 8
     if ((off_t)hdr.len != file_size - 8) {
         fs_close(&file);
         _error = Error::OtaHeaderLength;
@@ -365,7 +331,7 @@ int ArduinoOTAClass::decompress()
 
     bool compressed = (hdr.version[0] & OTA_FLAG_COMPRESS) != 0;
 
-    // Verify CRC-32: covers file[8:] (magic + version + payload)
+    // Verify CRC-32 over file[8:]
     fs_seek(&file, 8, FS_SEEK_SET);
     uint32_t crc = 0xFFFFFFFF;
     uint8_t buf[512];
@@ -383,122 +349,44 @@ int ArduinoOTAClass::decompress()
         _error = Error::OtaHeaderCrc;
         return (int)_error;
     }
-
     fs_close(&file);
 
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-    // STM32H7: decompress LZSS -> UPDATE.BIN, delete .OTA temp file
-    int32_t output_size;
-    if (compressed) {
-        struct fs_file_t in_file, out_file;
-        fs_file_t_init(&in_file);
-        fs_file_t_init(&out_file);
+    // Decompress (or copy) payload to UPDATE.BIN
+    struct fs_file_t in_file, out_file;
+    fs_file_t_init(&in_file);
+    fs_file_t_init(&out_file);
 
-        ret = fs_open(&in_file, OTA_TEMP_PATH, FS_O_READ);
-        if (ret < 0) {
-            _error = Error::OtaStorageOpen;
-            fs_unlink(OTA_TEMP_PATH);
-            return (int)_error;
-        }
+    ret = fs_open(&in_file, OTA_TEMP_PATH, FS_O_READ);
+    if (ret < 0) {
+        _error = Error::OtaStorageOpen;
+        fs_unlink(OTA_TEMP_PATH);
+        return (int)_error;
+    }
 
-        ret = fs_open(&out_file, OTA_FILE_PATH, FS_O_CREATE | FS_O_WRITE);
-        if (ret < 0) {
-            fs_close(&in_file);
-            _error = Error::OtaStorageOpen;
-            fs_unlink(OTA_TEMP_PATH);
-            return (int)_error;
-        }
-
-        fs_seek(&in_file, OTA_HEADER_SIZE, FS_SEEK_SET);
-        output_size = lzss_decompress(&in_file, &out_file);
-
+    ret = fs_open(&out_file, OTA_FILE_PATH, FS_O_CREATE | FS_O_WRITE);
+    if (ret < 0) {
         fs_close(&in_file);
-        fs_close(&out_file);
+        _error = Error::OtaStorageOpen;
+        fs_unlink(OTA_TEMP_PATH);
+        return (int)_error;
+    }
 
-        if (output_size < 0) {
-            _error = Error::OtaHeaderCrc;
-            fs_unlink(OTA_TEMP_PATH);
-            return (int)_error;
-        }
-    } else {
-        // Copy payload (skip header) to UPDATE.BIN
-        struct fs_file_t in_file, out_file;
-        fs_file_t_init(&in_file);
-        fs_file_t_init(&out_file);
+    fs_seek(&in_file, OTA_HEADER_SIZE, FS_SEEK_SET);
+    int32_t output_size = compressed ? lzss_decompress(&in_file, &out_file)
+                                     : filecopy(&in_file, &out_file);
 
-        ret = fs_open(&in_file, OTA_TEMP_PATH, FS_O_READ);
-        if (ret < 0) {
-            _error = Error::OtaStorageOpen;
-            fs_unlink(OTA_TEMP_PATH);
-            return (int)_error;
-        }
+    fs_close(&in_file);
+    fs_close(&out_file);
 
-        ret = fs_open(&out_file, OTA_FILE_PATH, FS_O_CREATE | FS_O_WRITE);
-        if (ret < 0) {
-            fs_close(&in_file);
-            _error = Error::OtaStorageOpen;
-            fs_unlink(OTA_TEMP_PATH);
-            return (int)_error;
-        }
-
-        fs_seek(&in_file, OTA_HEADER_SIZE, FS_SEEK_SET);
-
-        uint32_t total = 0;
-        while ((n = fs_read(&in_file, buf, sizeof(buf))) > 0) {
-            if (fs_write(&out_file, buf, n) != n) {
-                fs_close(&in_file);
-                fs_close(&out_file);
-                _error = Error::OtaStorageOpen;
-                fs_unlink(OTA_TEMP_PATH);
-                return (int)_error;
-            }
-            total += n;
-            if (total % (512 * 16) == 0)
-                feedWatchdog();
-        }
-
-        fs_close(&in_file);
-        fs_close(&out_file);
-        output_size = (int32_t)total;
+    if (output_size < 0) {
+        _error = Error::OtaHeaderCrc;
+        fs_unlink(OTA_TEMP_PATH);
+        return (int)_error;
     }
 
     fs_unlink(OTA_TEMP_PATH);
     _program_length = (uint32_t)output_size;
     return (int)output_size;
-#else
-    // C33: SFU handles decompression on boot — leave .OTA file in place
-    _program_length = (uint32_t)(file_size - OTA_HEADER_SIZE);
-    return (int)_program_length;
-#endif
-}
-
-ArduinoOTAClass::Error ArduinoOTAClass::update()
-{
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-    // STM32H7: write RTC backup registers to signal bootloader
-    struct fs_dirent entry;
-    if (fs_stat(OTA_FILE_PATH, &entry) < 0) {
-        _error = Error::OtaStorageOpen;
-        return _error;
-    }
-    _program_length = entry.size;
-
-    uint32_t rtc_base = (uint32_t)&(RTC->BKP0R);
-
-    // in EDK use this instead of HAL_RTCEx_BKUPWrite
-    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR0 * 4U) = OTA_MAGIC_BOOT;
-    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR1 * 4U) = OTA_STORAGE_TYPE;
-    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR2 * 4U) = OTA_MBR_PART;
-    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR3 * 4U) = _program_length;
-#endif
-    // C33: SFU checks for UPDATE.BIN.OTA on every boot — no action needed
-
-    return Error::None;
-}
-
-void ArduinoOTAClass::reset()
-{
-    NVIC_SystemReset();
 }
 
 void ArduinoOTAClass::setFeedWatchdogFunc(void (*func)(void))
@@ -515,7 +403,8 @@ const char* ArduinoOTAClass::errorString()
 {
     switch (_error) {
     case Error::None:                return "no error";
-    case Error::NoCapableBootloader: return "bootloader not OTA capable (version < 22)";
+    case Error::NoCapableBootloader: return "bootloader not OTA capable";
+    case Error::NoOtaStorage:        return "no OTA storage available";
     case Error::OtaStorageInit:      return "OTA storage init failed";
     case Error::OtaStorageOpen:      return "OTA storage open failed";
     case Error::OtaHeaderLength:     return "OTA header length mismatch";
