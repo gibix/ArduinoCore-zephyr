@@ -24,7 +24,7 @@ class ArduinoOTAClass {
 public:
     enum class Error : int {
         None                 =  0,
-        NoCapableBootloader  = -1,
+        NoOtaStorage         = -1,
         OtaStorageInit       = -3,
         OtaStorageOpen       = -4,
         OtaHeaderLength      = -5,
@@ -43,10 +43,10 @@ public:
     // If not set, magic check is skipped.
     void setMagic(uint32_t magic);
 
-    Error begin();            // check bootloader + verify storage accessible
+    Error begin();            // verify OTA storage accessible
     int download();           // HTTP GET -> temp file (returns bytes written, or negative Error)
-    int decompress();         // verify header+CRC; STM32H7: LZSS -> UPDATE.BIN; C33: leave .OTA for SFU
-    Error update();           // STM32H7: write RTC backup registers; C33: no-op (SFU checks on boot)
+    int decompress();         // verify header+CRC, LZSS decompress -> UPDATE.BIN
+    Error update();           // create sentinel file for loader to pick up on reboot
     void reset();             // NVIC_SystemReset (does not return)
 
     void setFeedWatchdogFunc(void (*func)(void));

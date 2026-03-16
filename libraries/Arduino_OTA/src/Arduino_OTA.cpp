@@ -11,12 +11,7 @@
 #include <SocketWrapper.h>
 #include <zephyr/fs/fs.h>
 #include <zephyr/kernel.h>
-
-#include <cmsis_core.h>
-
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-#include <stm32h7xx.h>
-#endif
+#include <zephyr/sys/reboot.h>
 
 #include <errno.h>
 #include <string.h>
@@ -26,12 +21,7 @@
 #define OTA_TEMP_PATH    "/ota:/UPDATE.BIN.OTA"
 #define OTA_FILE_PATH    "/ota:/UPDATE.BIN"
 #define OTA_BUF_SIZE     4096
-
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-#define OTA_MAGIC_BOOT   0x07AA
-#define OTA_STORAGE_TYPE 0xA4   // QSPI_FLASH | FATFS | MBR
-#define OTA_MBR_PART     2
-#endif
+#define OTA_SENTINEL_PATH "/ota:/OTA_UPDATE_PENDING"
 
 // CRC-32 table (IEEE, same as Arduino_Portenta_OTA)
 static const uint32_t crc_table[256] = {
@@ -82,14 +72,8 @@ ArduinoOTAClass ArduinoOTA;
 
 bool ArduinoOTAClass::isOtaCapable()
 {
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-    // STM32H7: check bootloader version at fixed address
-    const uint8_t *bootloader_data = (const uint8_t *)(0x08000000 + 0x1F000);
-    return bootloader_data[1] >= 22;
-#else
-    // C33: SFU is always present if properly flashed
-    return true;
-#endif
+    struct fs_statvfs stat;
+    return fs_statvfs("/ota:", &stat) == 0;
 }
 
 void ArduinoOTAClass::setURL(const char *url)
@@ -115,7 +99,7 @@ ArduinoOTAClass::Error ArduinoOTAClass::begin()
     _error = Error::None;
 
     if (!isOtaCapable()) {
-        _error = Error::NoCapableBootloader;
+        _error = Error::NoOtaStorage;
         return _error;
     }
 
@@ -386,8 +370,6 @@ int ArduinoOTAClass::decompress()
 
     fs_close(&file);
 
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-    // STM32H7: decompress LZSS -> UPDATE.BIN, delete .OTA temp file
     int32_t output_size;
     if (compressed) {
         struct fs_file_t in_file, out_file;
@@ -421,7 +403,6 @@ int ArduinoOTAClass::decompress()
             return (int)_error;
         }
     } else {
-        // Copy payload (skip header) to UPDATE.BIN
         struct fs_file_t in_file, out_file;
         fs_file_t_init(&in_file);
         fs_file_t_init(&out_file);
@@ -465,17 +446,10 @@ int ArduinoOTAClass::decompress()
     fs_unlink(OTA_TEMP_PATH);
     _program_length = (uint32_t)output_size;
     return (int)output_size;
-#else
-    // C33: SFU handles decompression on boot — leave .OTA file in place
-    _program_length = (uint32_t)(file_size - OTA_HEADER_SIZE);
-    return (int)_program_length;
-#endif
 }
 
 ArduinoOTAClass::Error ArduinoOTAClass::update()
 {
-#if defined(CONFIG_SOC_SERIES_STM32H7X)
-    // STM32H7: write RTC backup registers to signal bootloader
     struct fs_dirent entry;
     if (fs_stat(OTA_FILE_PATH, &entry) < 0) {
         _error = Error::OtaStorageOpen;
@@ -483,22 +457,22 @@ ArduinoOTAClass::Error ArduinoOTAClass::update()
     }
     _program_length = entry.size;
 
-    uint32_t rtc_base = (uint32_t)&(RTC->BKP0R);
-
-    // in EDK use this instead of HAL_RTCEx_BKUPWrite
-    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR0 * 4U) = OTA_MAGIC_BOOT;
-    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR1 * 4U) = OTA_STORAGE_TYPE;
-    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR2 * 4U) = OTA_MBR_PART;
-    *(__IO uint32_t *)(rtc_base + RTC_BKP_DR3 * 4U) = _program_length;
-#endif
-    // C33: SFU checks for UPDATE.BIN.OTA on every boot — no action needed
+    /* Create sentinel file for the loader to pick up on reboot */
+    struct fs_file_t sentinel;
+    fs_file_t_init(&sentinel);
+    int ret = fs_open(&sentinel, OTA_SENTINEL_PATH, FS_O_CREATE | FS_O_WRITE);
+    if (ret < 0) {
+        _error = Error::OtaStorageOpen;
+        return _error;
+    }
+    fs_close(&sentinel);
 
     return Error::None;
 }
 
 void ArduinoOTAClass::reset()
 {
-    NVIC_SystemReset();
+    sys_reboot(SYS_REBOOT_COLD);
 }
 
 void ArduinoOTAClass::setFeedWatchdogFunc(void (*func)(void))
@@ -515,7 +489,7 @@ const char* ArduinoOTAClass::errorString()
 {
     switch (_error) {
     case Error::None:                return "no error";
-    case Error::NoCapableBootloader: return "bootloader not OTA capable (version < 22)";
+    case Error::NoOtaStorage:        return "no OTA storage available";
     case Error::OtaStorageInit:      return "OTA storage init failed";
     case Error::OtaStorageOpen:      return "OTA storage open failed";
     case Error::OtaHeaderLength:     return "OTA header length mismatch";

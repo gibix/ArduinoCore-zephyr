@@ -45,80 +45,102 @@ func doMerge() {
 	outputPath := flag.String("output", "", "output .ota file path")
 	magicStr := flag.String("magic", "0x00000000", "board magic number (hex)")
 	noCompress := flag.Bool("no-compress", false, "disable LZSS compression")
+	sketchOnly := flag.Bool("sketch-only", false, "sketch-only mode: wrap raw sketch in OTA header (no loader merge)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s -loader <file> -sketch <file> -offset <hex> -output <file> [options]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [--sketch-only] -sketch <file> -output <file> [options]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Creates an OTA update file with header and LZSS compression.\n\n")
-		fmt.Fprintf(os.Stderr, "For boards with SFU (e.g. Portenta C33), use -sfu to prepend the SFU\n")
-		fmt.Fprintf(os.Stderr, "binary before the loader. The offset is from the start of the merged\n")
-		fmt.Fprintf(os.Stderr, "binary (including SFU).\n\n")
+		fmt.Fprintf(os.Stderr, "In sketch-only mode, the payload is the raw sketch file.\n")
+		fmt.Fprintf(os.Stderr, "In merge mode, the payload is loader + sketch merged at offset.\n\n")
 		flag.PrintDefaults()
 	}
 
 	flag.Parse()
 
-	if *loaderPath == "" || *sketchPath == "" || *offsetStr == "" || *outputPath == "" {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	offset, err := parseHex(*offsetStr)
-	fatal(err, "parse offset")
-
 	magic, err := parseHex(*magicStr)
 	fatal(err, "parse magic")
 
-	loader, err := os.ReadFile(*loaderPath)
-	fatal(err, "read loader")
+	var payload_input []byte
 
-	sketch, err := os.ReadFile(*sketchPath)
-	fatal(err, "read sketch")
-
-	// If SFU is specified, prepend it before the loader with 0xFF padding
-	if *sfuPath != "" {
-		sfuSize, err := parseHex(*sfuSizeStr)
-		fatal(err, "parse sfu-size")
-
-		sfu, err := os.ReadFile(*sfuPath)
-		fatal(err, "read sfu")
-
-		if int64(len(sfu)) > sfuSize {
-			fatalf("SFU binary size (%d bytes) exceeds SFU partition size (0x%X)", len(sfu), sfuSize)
+	if *sketchOnly {
+		// Sketch-only mode: reject merge-only flags
+		if *loaderPath != "" || *offsetStr != "" || *sfuPath != "" {
+			fatalf("--sketch-only: -loader, -offset, and -sfu are not allowed")
+		}
+		if *sketchPath == "" || *outputPath == "" {
+			flag.Usage()
+			os.Exit(1)
 		}
 
-		// Build combined: [sfu | 0xFF pad to sfuSize | loader]
-		combined := make([]byte, sfuSize+int64(len(loader)))
-		copy(combined, sfu)
-		for i := len(sfu); i < int(sfuSize); i++ {
-			combined[i] = 0xFF
+		sketch, err := os.ReadFile(*sketchPath)
+		fatal(err, "read sketch")
+		payload_input = sketch
+
+		fmt.Printf("Sketch-only mode: %d bytes\n", len(sketch))
+	} else {
+		// Merge mode: require loader, sketch, offset, output
+		if *loaderPath == "" || *sketchPath == "" || *offsetStr == "" || *outputPath == "" {
+			flag.Usage()
+			os.Exit(1)
 		}
-		copy(combined[sfuSize:], loader)
 
-		fmt.Printf("SFU: %d bytes (padded to 0x%X), loader: %d bytes\n", len(sfu), sfuSize, len(loader))
-		loader = combined
-	}
+		offset, err := parseHex(*offsetStr)
+		fatal(err, "parse offset")
 
-	if int64(len(loader)) > offset {
-		fatalf("loader size (%d bytes) exceeds offset (0x%X)", len(loader), offset)
-	}
+		loader, err := os.ReadFile(*loaderPath)
+		fatal(err, "read loader")
 
-	// Merge: loader + 0xFF padding + sketch
-	merged := make([]byte, offset+int64(len(sketch)))
-	copy(merged, loader)
-	for i := len(loader); i < int(offset); i++ {
-		merged[i] = 0xFF
+		sketch, err := os.ReadFile(*sketchPath)
+		fatal(err, "read sketch")
+
+		// If SFU is specified, prepend it before the loader with 0xFF padding
+		if *sfuPath != "" {
+			sfuSize, err := parseHex(*sfuSizeStr)
+			fatal(err, "parse sfu-size")
+
+			sfu, err := os.ReadFile(*sfuPath)
+			fatal(err, "read sfu")
+
+			if int64(len(sfu)) > sfuSize {
+				fatalf("SFU binary size (%d bytes) exceeds SFU partition size (0x%X)", len(sfu), sfuSize)
+			}
+
+			combined := make([]byte, sfuSize+int64(len(loader)))
+			copy(combined, sfu)
+			for i := len(sfu); i < int(sfuSize); i++ {
+				combined[i] = 0xFF
+			}
+			copy(combined[sfuSize:], loader)
+
+			fmt.Printf("SFU: %d bytes (padded to 0x%X), loader: %d bytes\n", len(sfu), sfuSize, len(loader))
+			loader = combined
+		}
+
+		if int64(len(loader)) > offset {
+			fatalf("loader size (%d bytes) exceeds offset (0x%X)", len(loader), offset)
+		}
+
+		// Merge: loader + 0xFF padding + sketch
+		merged := make([]byte, offset+int64(len(sketch)))
+		copy(merged, loader)
+		for i := len(loader); i < int(offset); i++ {
+			merged[i] = 0xFF
+		}
+		copy(merged[offset:], sketch)
+		payload_input = merged
+
+		fmt.Printf("  merged binary: %d bytes (loader %d + sketch %d)\n", len(merged), len(loader), len(sketch))
 	}
-	copy(merged[offset:], sketch)
 
 	// Compress
 	var payload []byte
 	compressed := !*noCompress
 	if compressed {
-		payload = lzssEncode(merged)
-		ratio := 100.0 * float64(len(payload)) / float64(len(merged))
-		fmt.Printf("LZSS: %d -> %d bytes (%.1f%%)\n", len(merged), len(payload), ratio)
+		payload = lzssEncode(payload_input)
+		ratio := 100.0 * float64(len(payload)) / float64(len(payload_input))
+		fmt.Printf("LZSS: %d -> %d bytes (%.1f%%)\n", len(payload_input), len(payload), ratio)
 	} else {
-		payload = merged
+		payload = payload_input
 	}
 
 	// Build 8-byte header version field
@@ -157,7 +179,7 @@ func doMerge() {
 	fatal(err, "write output")
 
 	fmt.Printf("OTA file: %s (%d bytes)\n", *outputPath, len(out))
-	fmt.Printf("  merged binary: %d bytes (loader %d + sketch %d)\n", len(merged), len(loader), len(sketch))
+	fmt.Printf("  input: %d bytes\n", len(payload_input))
 	fmt.Printf("  payload: %d bytes\n", len(payload))
 	fmt.Printf("  magic: 0x%08X\n", magic)
 }
