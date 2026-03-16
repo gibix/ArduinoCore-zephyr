@@ -17,7 +17,6 @@ LOG_MODULE_REGISTER(sketch);
 #include <zephyr/logging/log_ctrl.h>
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/uart/cdc_acm.h>
@@ -29,7 +28,8 @@ LOG_MODULE_REGISTER(sketch);
 
 #define HEADER_LEN 16
 
-static const char *ota_dirs[] = { "/ota:", "/sd:", NULL };
+#define OTA_SENTINEL_PATH "/ota:/OTA_UPDATE_PENDING"
+#define OTA_UPDATE_PATH   "/ota:/UPDATE.BIN"
 
 struct sketch_header_v1 {
 	uint8_t ver;    // @ 0x07
@@ -126,34 +126,21 @@ static int try_ota_update(const struct flash_area *fa)
 	struct fs_dirent entry;
 	int rc;
 
-	/* Find which storage has a pending OTA update */
-	const char *ota_dir = NULL;
-	char sentinel_path[32];
-	char file_path[32];
-
-	for (int i = 0; ota_dirs[i]; i++) {
-		snprintf(sentinel_path, sizeof(sentinel_path), "%s/OTA_UPDATE_PENDING", ota_dirs[i]);
-		if (fs_stat(sentinel_path, &entry) == 0) {
-			ota_dir = ota_dirs[i];
-			break;
-		}
-	}
-
-	if (!ota_dir) {
+	/* Check for pending OTA update */
+	if (fs_stat(OTA_SENTINEL_PATH, &entry) != 0) {
 		printk("OTA: no update pending\n");
 		return 0;
 	}
 
-	snprintf(file_path, sizeof(file_path), "%s/UPDATE.BIN", ota_dir);
-	printk("OTA update pending from %s, validating...\n", ota_dir);
+	printk("OTA: update pending, validating...\n");
 
 	/* Open UPDATE.BIN */
 	struct fs_file_t file;
 	fs_file_t_init(&file);
-	rc = fs_open(&file, file_path, FS_O_READ);
+	rc = fs_open(&file, OTA_UPDATE_PATH, FS_O_READ);
 	if (rc < 0) {
-		printk("OTA: failed to open %s, rc %d\n", file_path, rc);
-		fs_unlink(sentinel_path);
+		printk("OTA: failed to open %s, rc %d\n", OTA_UPDATE_PATH, rc);
+		fs_unlink(OTA_SENTINEL_PATH);
 		return -1;
 	}
 
@@ -165,7 +152,7 @@ static int try_ota_update(const struct flash_area *fa)
 	if (file_size < HEADER_LEN) {
 		printk("OTA: file too small (%ld bytes)\n", (long)file_size);
 		fs_close(&file);
-		fs_unlink(sentinel_path);
+		fs_unlink(OTA_SENTINEL_PATH);
 		return -1;
 	}
 
@@ -175,7 +162,7 @@ static int try_ota_update(const struct flash_area *fa)
 	if (rc != HEADER_LEN) {
 		printk("OTA: failed to read header\n");
 		fs_close(&file);
-		fs_unlink(sentinel_path);
+		fs_unlink(OTA_SENTINEL_PATH);
 		return -1;
 	}
 
@@ -183,7 +170,7 @@ static int try_ota_update(const struct flash_area *fa)
 	if (hdr->ver != 0x1 || hdr->magic != 0x2341) {
 		printk("OTA: invalid sketch header (ver=0x%x magic=0x%x)\n", hdr->ver, hdr->magic);
 		fs_close(&file);
-		fs_unlink(sentinel_path);
+		fs_unlink(OTA_SENTINEL_PATH);
 		return -1;
 	}
 
@@ -196,7 +183,7 @@ static int try_ota_update(const struct flash_area *fa)
 	if (rc) {
 		printk("OTA: flash erase failed, rc %d\n", rc);
 		fs_close(&file);
-		fs_unlink(sentinel_path);
+		fs_unlink(OTA_SENTINEL_PATH);
 		return -1;
 	}
 
@@ -212,7 +199,7 @@ static int try_ota_update(const struct flash_area *fa)
 		if (rc) {
 			printk("OTA: flash write failed at offset %ld, rc %d\n", (long)offset, rc);
 			fs_close(&file);
-			fs_unlink(sentinel_path);
+			fs_unlink(OTA_SENTINEL_PATH);
 			return -1;
 		}
 		offset += n;
@@ -223,8 +210,8 @@ static int try_ota_update(const struct flash_area *fa)
 	printk("OTA: wrote %ld bytes to flash\n", (long)offset);
 
 	/* Delete sentinel and update file */
-	fs_unlink(sentinel_path);
-	fs_unlink(file_path);
+	fs_unlink(OTA_SENTINEL_PATH);
+	fs_unlink(OTA_UPDATE_PATH);
 
 	printk("OTA: update complete\n");
 	return 0;
@@ -234,6 +221,18 @@ static int try_ota_update(const struct flash_area *fa)
 static int loader(const struct shell *sh) {
 	const struct flash_area *fa;
 	int rc;
+
+#if CONFIG_SHELL && TARGET_HAS_USB_CDC
+	/* Enable USB early so printk output is visible during OTA */
+	usb_enable(NULL);
+	int dtr = 0;
+	for (int i = 0; i < 50; i++) { /* wait up to 5s for serial */
+		uart_line_ctrl_get(usb_dev, UART_LINE_CTRL_DTR, &dtr);
+		if (dtr) break;
+		k_sleep(K_MSEC(100));
+	}
+	printk("\n=== Loader started ===\n");
+#endif
 
 	/* Test that attempting to open a disabled flash area fails */
 	rc = flash_area_open(FIXED_PARTITION_ID(user_sketch), &fa);
