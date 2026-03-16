@@ -120,6 +120,18 @@ static int loader(const struct shell *sh) {
 	const struct flash_area *fa;
 	int rc;
 
+#if TARGET_HAS_USB_CDC
+	/* Enable USB early so printk output is visible during OTA */
+	usb_enable(NULL);
+	int dtr = 0;
+	for (int i = 0; i < 50; i++) { /* wait up to 5s for serial */
+		uart_line_ctrl_get(usb_dev, UART_LINE_CTRL_DTR, &dtr);
+		if (dtr) break;
+		k_sleep(K_MSEC(100));
+	}
+	printk("\n=== Loader started ===\n");
+#endif
+
 	/* Test that attempting to open a disabled flash area fails */
 	rc = flash_area_open(FIXED_PARTITION_ID(user_sketch), &fa);
 	if (rc) {
