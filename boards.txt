@@ -72,7 +72,9 @@ giga.debug.cortex-debug.custom.request=attach
 giga.debug.svd_file={runtime.platform.path}/svd/STM32H747_CM7.svd
 
 giga.build.ota.magic=0x23410266
-giga.build.ota.merge_command="{runtime.tools.ota-merge.path}/ota-merge" --sketch-only -sketch "{build.path}/{build.project_name}.{upload.extension}" -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
+giga.build.ota.sketch_offset=0xA0000
+giga.build.ota.pack_command_legacy="{runtime.tools.ota-pack.path}/ota-pack" -loader "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" -sketch "{build.path}/{build.project_name}.{upload.extension}" -offset {build.ota.sketch_offset} -magic {build.ota.magic} -output "{build.path}/{build.project_name}.legacy.ota"
+giga.build.ota.pack_command="{runtime.tools.ota-pack.path}/ota-pack" --sketch-only -sketch "{build.path}/{build.project_name}.{upload.extension}" -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
 
 ##########################################################################################
 
@@ -315,7 +317,9 @@ portentah7.bootloader.file=zephyr-{build.variant}.bin
 portentah7.bootloader.address=0x08040000
 
 portentah7.build.ota.magic=0x2341025B
-portentah7.build.ota.merge_command="{runtime.tools.ota-merge.path}/ota-merge" --sketch-only -sketch "{build.path}/{build.project_name}.{upload.extension}" -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
+portentah7.build.ota.sketch_offset=0xA0000
+portentah7.build.ota.pack_command_legacy="{runtime.tools.ota-pack.path}/ota-pack" -loader "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" -sketch "{build.path}/{build.project_name}.{upload.extension}" -offset {build.ota.sketch_offset} -magic {build.ota.magic} -output "{build.path}/{build.project_name}.legacy.ota"
+portentah7.build.ota.pack_command="{runtime.tools.ota-pack.path}/ota-pack" --sketch-only -sketch "{build.path}/{build.project_name}.{upload.extension}" -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
 
 portentah7.debug.tool=gdb
 portentah7.debug.server.openocd.scripts.0=interface/{programmer.protocol}.cfg
@@ -500,7 +504,9 @@ portentac33.bootloader.address=0x10000
 portentac33.bootloader.dfuse=-Q
 
 portentac33.build.ota.magic=0x23410068
-portentac33.build.ota.merge_command="{runtime.tools.ota-merge.path}/ota-merge" --sketch-only -sketch "{build.path}/{build.project_name}.{upload.extension}" -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
+portentac33.build.ota.sketch_offset=0xF0000
+portentac33.build.ota.pack_command_legacy="{runtime.tools.ota-pack.path}/ota-pack" -sfu "{runtime.platform.path}/loader/blobs/c33_sfu.bin" -loader "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" -sketch "{build.path}/{build.project_name}.{upload.extension}" -offset {build.ota.sketch_offset} -magic {build.ota.magic} -output "{build.path}/{build.project_name}.legacy.ota"
+portentac33.build.ota.pack_command="{runtime.tools.ota-pack.path}/ota-pack" --sketch-only -sketch "{build.path}/{build.project_name}.{upload.extension}" -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
 
 ##########################################################################################
 
@@ -571,7 +577,9 @@ opta.debug.cortex-debug.custom.request=attach
 opta.debug.svd_file={runtime.platform.path}/svd/STM32H747_CM7.svd
 
 opta.build.ota.magic=0x23410064
-opta.build.ota.merge_command="{runtime.tools.ota-merge.path}/ota-merge" --sketch-only -sketch "{build.path}/{build.project_name}.{upload.extension}" -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
+opta.build.ota.sketch_offset=0xA0000
+opta.build.ota.pack_command_legacy="{runtime.tools.ota-pack.path}/ota-pack" -loader "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" -sketch "{build.path}/{build.project_name}.{upload.extension}" -offset {build.ota.sketch_offset} -magic {build.ota.magic} -output "{build.path}/{build.project_name}.legacy.ota"
+opta.build.ota.pack_command="{runtime.tools.ota-pack.path}/ota-pack" --sketch-only -sketch "{build.path}/{build.project_name}.{upload.extension}" -magic {build.ota.magic} -output "{build.path}/{build.project_name}.ota"
 
 ##########################################################################################
 

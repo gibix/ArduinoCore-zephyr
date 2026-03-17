@@ -11,7 +11,6 @@
 #include <SocketWrapper.h>
 #include <zephyr/fs/fs.h>
 #include <zephyr/kernel.h>
-#include <zephyr/sys/reboot.h>
 
 #include <errno.h>
 #include <string.h>
@@ -21,7 +20,6 @@
 #define OTA_TEMP_PATH    "/ota:/UPDATE.BIN.OTA"
 #define OTA_FILE_PATH    "/ota:/UPDATE.BIN"
 #define OTA_BUF_SIZE     4096
-#define OTA_SENTINEL_PATH "/ota:/OTA_UPDATE_PENDING"
 
 // CRC-32 table (IEEE, same as Arduino_Portenta_OTA)
 static const uint32_t crc_table[256] = {
@@ -59,7 +57,7 @@ static const uint32_t crc_table[256] = {
     0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-static uint32_t crc_update(uint32_t crc, const void *data, size_t len)
+uint32_t ArduinoOTAClass::crc_update(uint32_t crc, const void *data, size_t len)
 {
     const uint8_t *d = (const uint8_t *)data;
     while (len--) {
@@ -68,48 +66,15 @@ static uint32_t crc_update(uint32_t crc, const void *data, size_t len)
     return crc;
 }
 
-ArduinoOTAClass ArduinoOTA;
-
-bool ArduinoOTAClass::isOtaCapable()
-{
-    struct fs_statvfs stat;
-    return fs_statvfs("/ota:", &stat) == 0;
-}
-
 void ArduinoOTAClass::setURL(const char *url)
 {
     _url = url;
     _error = Error::None;
 }
 
-void ArduinoOTAClass::setMagic(uint32_t magic)
-{
-    _magic = magic;
-    _magic_set = true;
-}
-
 void ArduinoOTAClass::setCACert(const char *ca_cert_pem)
 {
     _ca_cert = ca_cert_pem;
-}
-
-ArduinoOTAClass::Error ArduinoOTAClass::begin()
-{
-    _program_length = 0;
-    _error = Error::None;
-
-    if (!isOtaCapable()) {
-        _error = Error::NoOtaStorage;
-        return _error;
-    }
-
-    struct fs_statvfs stat;
-    if (fs_statvfs("/ota:", &stat) < 0) {
-        _error = Error::OtaStorageInit;
-        return _error;
-    }
-
-    return Error::None;
 }
 
 int ArduinoOTAClass::parseURL()
@@ -307,6 +272,11 @@ int ArduinoOTAClass::download()
     return ret;
 }
 
+bool ArduinoOTAClass::isOtaCapable() { return false; }
+ArduinoOTAClass::Error ArduinoOTAClass::begin() { return Error::NoOtaStorage; }
+ArduinoOTAClass::Error ArduinoOTAClass::update() { return Error::NoOtaStorage; }
+void ArduinoOTAClass::reset() {}
+
 int ArduinoOTAClass::decompress()
 {
     _error = Error::None;
@@ -334,11 +304,13 @@ int ArduinoOTAClass::decompress()
     }
 
     // Check magic
-    if (_magic_set && hdr.magic_number != _magic) {
+#if defined(OTA_BOARD_MAGIC)
+    if (hdr.magic_number != OTA_BOARD_MAGIC) {
         fs_close(&file);
         _error = Error::OtaHeaderCrc;
         return (int)_error;
     }
+#endif
 
     // Validate header length field: hdr.len == file_size - 8
     if ((off_t)hdr.len != file_size - 8) {
@@ -448,33 +420,6 @@ int ArduinoOTAClass::decompress()
     return (int)output_size;
 }
 
-ArduinoOTAClass::Error ArduinoOTAClass::update()
-{
-    struct fs_dirent entry;
-    if (fs_stat(OTA_FILE_PATH, &entry) < 0) {
-        _error = Error::OtaStorageOpen;
-        return _error;
-    }
-    _program_length = entry.size;
-
-    /* Create sentinel file for the loader to pick up on reboot */
-    struct fs_file_t sentinel;
-    fs_file_t_init(&sentinel);
-    int ret = fs_open(&sentinel, OTA_SENTINEL_PATH, FS_O_CREATE | FS_O_WRITE);
-    if (ret < 0) {
-        _error = Error::OtaStorageOpen;
-        return _error;
-    }
-    fs_close(&sentinel);
-
-    return Error::None;
-}
-
-void ArduinoOTAClass::reset()
-{
-    sys_reboot(SYS_REBOOT_COLD);
-}
-
 void ArduinoOTAClass::setFeedWatchdogFunc(void (*func)(void))
 {
     _feed_watchdog_func = func;
@@ -489,6 +434,7 @@ const char* ArduinoOTAClass::errorString()
 {
     switch (_error) {
     case Error::None:                return "no error";
+    case Error::NoCapableBootloader: return "bootloader not OTA capable";
     case Error::NoOtaStorage:        return "no OTA storage available";
     case Error::OtaStorageInit:      return "OTA storage init failed";
     case Error::OtaStorageOpen:      return "OTA storage open failed";

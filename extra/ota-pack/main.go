@@ -1,11 +1,11 @@
 // Copyright (c) Arduino s.r.l. and/or its affiliated companies
 // SPDX-License-Identifier: Apache-2.0
 
-// ota-merge: Create OTA update files for Arduino boards
+// ota-pack: Create OTA update files for Arduino boards
 //
 // Usage:
 //
-//	ota-merge [flags]           Create an OTA update file
+//	ota-pack [flags]           Create an OTA update file
 package main
 
 import (
@@ -20,11 +20,11 @@ import (
 
 // LZSS parameters matching the Arduino OTA decoder (Arduino_Portenta_OTA)
 const (
-	lzssEI = 11                    // match position bits
-	lzssEJ = 4                     // match length bits
-	lzssN  = 1 << lzssEI           // ring buffer size = 2048
-	lzssF  = (1 << lzssEJ) + 1     // max match length = 17
-	lzssMask = lzssN - 1           // ring buffer index mask
+	lzssEI   = 11                // match position bits
+	lzssEJ   = 4                 // match length bits
+	lzssN    = 1 << lzssEI       // ring buffer size = 2048
+	lzssF    = (1 << lzssEJ) + 1 // max match length = 17
+	lzssMask = lzssN - 1         // ring buffer index mask
 )
 
 // OTA header constants
@@ -50,6 +50,9 @@ func doMerge() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [--sketch-only] -sketch <file> -output <file> [options]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Creates an OTA update file with header and LZSS compression.\n\n")
+		fmt.Fprintf(os.Stderr, "For boards with SFU (e.g. Portenta C33), use -sfu to prepend the SFU\n")
+		fmt.Fprintf(os.Stderr, "binary before the loader. The offset is from the start of the merged\n")
+		fmt.Fprintf(os.Stderr, "binary (including SFU).\n\n")
 		fmt.Fprintf(os.Stderr, "In sketch-only mode, the payload is the raw sketch file.\n")
 		fmt.Fprintf(os.Stderr, "In merge mode, the payload is loader + sketch merged at offset.\n\n")
 		flag.PrintDefaults()

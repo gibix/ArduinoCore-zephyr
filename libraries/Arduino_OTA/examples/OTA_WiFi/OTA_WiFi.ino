@@ -15,9 +15,11 @@
  * 5. On reboot, the loader validates the new sketch and flashes it
  */
 
-#include <Arduino_OTA.h>
+#include <Arduino_OTA_Loader.h>
 #include <WiFi.h>
 #include "arduino_secrets.h"
+
+ArduinoOTALoaderClass ArduinoOTA;
 
 void setup() {
   Serial.begin(115200);
