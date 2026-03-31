@@ -220,10 +220,6 @@ def main():
             if name in sized_syms:
                 out_syms[name + "_size"] = (sym['st_size'], [f"size of {name}"])
 
-        if not out_syms:
-            sys.stderr.write("No symbols found matching the criteria.\n")
-            fail = True
-
         if fail:
             sys.exit(1)
 
@@ -235,16 +231,21 @@ def main():
  * SHA256: {elf_sha}
  */
 """)
-        sym_comment = nul_comment = ""
-        for name, (value, comments) in sorted(out_syms.items(), key=lambda x: x[0]):
-            if args.verbose:
-                comment = ', '.join(sorted(comments))
-                sym_comment = f"/* {comment} */"
-                nul_comment = f" ({comment})"
-            if value:
-                print(f"PROVIDE({name} = {value:#010x});{sym_comment}")
-            else:
-                print(f"/* NULL {name}{nul_comment} */")
+
+        if not out_syms:
+            print("/* No symbols found matching the criteria */")
+            sys.stderr.write("warning: no symbols found matching the criteria.\n")
+        else:
+            sym_comment = nul_comment = ""
+            for name, (value, comments) in sorted(out_syms.items(), key=lambda x: x[0]):
+                if args.verbose:
+                    comment = ', '.join(sorted(comments))
+                    sym_comment = f"/* {comment} */"
+                    nul_comment = f" ({comment})"
+                if value:
+                    print(f"PROVIDE({name} = {value:#010x});{sym_comment}")
+                else:
+                    print(f"/* NULL {name}{nul_comment} */")
 
 #-------------------------------------------------------------------------------
 if __name__ == '__main__':
