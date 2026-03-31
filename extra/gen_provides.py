@@ -122,6 +122,9 @@ def main():
     argparser.add_argument('-F', '--funcs',
             action='store_true',
             help='Extract all public functions')
+    argparser.add_argument('-T', '--tls-defs',
+            action='store_true',
+            help='Extract TLS symbol offsets to a .S file')
     argparser.add_argument('file',
             help='ELF file to parse')
     argparser.add_argument('syms', nargs='*',
@@ -129,10 +132,19 @@ def main():
 
     args = argparser.parse_intermixed_args()
 
+    wants_provides = bool(args.syms or args.funcs or args.llext)
+    if wants_provides and args.tls_defs:
+        sys.stderr.write("Cannot generate TLS defs when also generating PROVIDEs.\n")
+        sys.exit(1)
+    elif not wants_provides and not args.tls_defs:
+        sys.stderr.write("Nothing specified for export.\n")
+        sys.exit(1)
+
     exact_syms = set()
     regex_syms = set()
     deref_syms = set()
     sized_syms = set()
+    tls_syms = set() # tuple of (name, value, size)
     rename_map = {}
     for sym in args.syms:
         sym_class = None
@@ -184,6 +196,11 @@ def main():
         fail = False
 
         for name, sym in all_syms.items():
+            if sym['st_info']['type'] == 'STT_TLS':
+                # Collect TLS symbol information, ignore for PROVIDEs
+                tls_syms.add((name, sym['st_value'], sym['st_size']))
+                continue
+
             value = None
             comment = []
             if name in exact_syms or any(re.match(r, name) for r in regex_syms):
@@ -232,20 +249,46 @@ def main():
  */
 """)
 
-        if not out_syms:
-            print("/* No symbols found matching the criteria */")
-            sys.stderr.write("warning: no symbols found matching the criteria.\n")
-        else:
-            sym_comment = nul_comment = ""
-            for name, (value, comments) in sorted(out_syms.items(), key=lambda x: x[0]):
-                if args.verbose:
-                    comment = ', '.join(sorted(comments))
-                    sym_comment = f"/* {comment} */"
-                    nul_comment = f" ({comment})"
-                if value:
-                    print(f"PROVIDE({name} = {value:#010x});{sym_comment}")
-                else:
-                    print(f"/* NULL {name}{nul_comment} */")
+        if wants_provides:
+            if not out_syms:
+                print("/* No symbols found matching the criteria */")
+                sys.stderr.write("warning: no symbols found matching the criteria.\n")
+            else:
+                sym_comment = nul_comment = ""
+                for name, (value, comments) in sorted(out_syms.items(), key=lambda x: x[0]):
+                    if args.verbose:
+                        comment = ', '.join(sorted(comments))
+                        sym_comment = f"/* {comment} */"
+                        nul_comment = f" ({comment})"
+                    if value:
+                        print(f"PROVIDE({name} = {value:#010x});{sym_comment}")
+                    else:
+                        print(f"/* NULL {name}{nul_comment} */")
+
+        if args.tls_defs:
+            # ARM and AArch64 use '@' as a line-comment character in GAS, so the
+            # assembler requires '%' as the type prefix there.  All other targets use '@'.
+            prefix = '%' if elf['e_machine'] in ('EM_ARM', 'EM_AARCH64') else '@'
+
+            # The TLS Variant 1 layout (used by ARM/AArch64) places a Thread
+            # Control Block (TCB) before the TLS data.  The thread pointer
+            # returned by __aeabi_read_tp() points to the TCB, so the actual
+            # runtime address of a TLS variable must be offset by that size.
+            #
+            # TCB is 2 pointers: 8 bytes on 32-bit, 16 bytes on 64-bit.
+            # See zephyr/arch/arm/core/tls.c: arch_tls_stack_setup().
+            tcb_size = (elf.elfclass // 8) * 2
+            print(f"/* Offsets include {tcb_size} bytes for TCB data */")
+
+            # Sort by offset first, then size
+            for name, offset, size in sorted(tls_syms, key=lambda x: (x[1], x[2])):
+                offset += tcb_size
+                print(
+                    f"\n/* TLS offset {offset:#x}: {name} ({size} bytes) */\n"
+                    f".global {name}\n"
+                    f".type {name}, {prefix}tls_object\n"
+                    f".set {name}, {offset}"
+                )
 
 #-------------------------------------------------------------------------------
 if __name__ == '__main__':

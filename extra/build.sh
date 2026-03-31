@@ -102,6 +102,7 @@ cp ${BUILD_DIR}/zephyr/.config firmwares/zephyr-$variant.config
 
 # Generate the provides.ld file for linked builds
 echo "Generating exported symbol scripts"
+extra/gen_provides.py "${BUILD_DIR}/zephyr/zephyr.elf" -T > ${VARIANT_DIR}/tls-syms.S
 extra/gen_provides.py "${BUILD_DIR}/zephyr/zephyr.elf" -L > ${VARIANT_DIR}/syms-dynamic.ld
 extra/gen_provides.py "${BUILD_DIR}/zephyr/zephyr.elf" -LF \
 	"+kheap_llext_heap" \

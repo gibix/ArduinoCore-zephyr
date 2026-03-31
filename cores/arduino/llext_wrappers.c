@@ -62,6 +62,11 @@
 		__real_##name(a);                                                                          \
 	}
 
+#ifdef CONFIG_ARM
+/* ARM EABI thread pointer access */
+W0(size_t, __aeabi_read_tp)
+#endif
+
 /* string.h */
 W3(void *, memcpy, void *, const void *, size_t)
 W3(void *, memmove, void *, const void *, size_t)
