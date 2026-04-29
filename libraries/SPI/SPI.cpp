@@ -115,7 +115,15 @@ void arduino::ZephyrSPI::detachInterrupt() {
 }
 
 void arduino::ZephyrSPI::begin() {
+#if defined(CONFIG_BOARD_ARDUINO_NANO_CONNECT)
+	/* On nano_connect the SPI driver is already initialized by the loader;
+	 * calling init() again on an already-ready device hangs. */
+	if (!device_is_ready(spi_dev)) {
+		spi_dev->ops.init(spi_dev);
+	}
+#else
 	spi_dev->ops.init(spi_dev);
+#endif
 }
 
 void arduino::ZephyrSPI::end() {
