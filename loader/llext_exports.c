@@ -420,7 +420,7 @@ EXPORT_SYMBOL(arm_irq_is_enabled);
 EXPORT_SYMBOL(arm_irq_priority_set);
 #endif
 
-#if defined(__arm__)
+#if defined(__arm__) && !defined(CONFIG_SOC_FAMILY_RPI_PICO)
 EXPORT_SYMBOL(SystemCoreClock);
 #endif
 
