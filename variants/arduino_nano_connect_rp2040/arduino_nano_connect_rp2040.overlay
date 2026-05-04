@@ -7,6 +7,19 @@
 #include <zephyr/dt-bindings/adc/adc.h>
 
 / {
+	/*
+	 * RP2040 PIO-based PDM microphone
+	 * CLK -> GPIO23 (D23), DIN -> GPIO22 (D22)
+	 */
+	pdm_pio: pdm_pio {
+		compatible = "raspberrypi,rp2040-pdm";
+		status = "okay";
+		clk-pin = <23>;
+		din-pin = <22>;
+		pio-num = <0>;
+		gain = <16>;
+	};
+
 	zephyr,user {
 		/*
 		 * Arduino Nano RP2040 Connect pin mapping
@@ -89,6 +102,7 @@
 		cdc-acm-serial = <&board_cdc_acm_uart>;
 		i2cs = <&i2c0>;
 		spis = <&spi0>, <&spi1>;
+		pdms = <&pdm_pio>;
 	};
 };
 

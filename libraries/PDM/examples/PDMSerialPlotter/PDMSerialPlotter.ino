@@ -6,8 +6,8 @@
 */
 #include <PDM.h>
 
-#if !defined(CONFIG_BOARD_ARDUINO_NANO_33_BLE) && !defined(ARDUINO_GIGA)
-#error "Only Nano 33 BLE or Arduino GIGA boards are currently supported by this library"
+#if !defined(CONFIG_BOARD_ARDUINO_NANO_33_BLE) && !defined(CONFIG_BOARD_ARDUINO_NANO_CONNECT) && !defined(ARDUINO_GIGA)
+#error "Only Nano 33 BLE, Nano RP2040 Connect or Arduino GIGA boards are currently supported by this library"
 #endif
 
 // default number of output channels

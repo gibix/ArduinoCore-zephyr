@@ -1,11 +1,9 @@
-/* Copyright (C) Arduino SRL (Daniele Aimo)
- * SPDX-License-Identifier: MPL-2.0 */
-
 #include "PDM.h"
-#include "utility/PDM_impl.h"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+
+#if !defined(CONFIG_BOARD_ARDUINO_NANO_CONNECT)
 
 /* ---- CONFIGURATION ----- */
 
@@ -17,6 +15,8 @@
  * the data from the mic are unimportant */
 
 /* SLAB configuration */
+#define SLAB_BLOCK_NUM        4
+#define SLAB_ALIGN            4
 /* THREAD configuration */
 #define PDM_THREAD_STACK_SIZE 1024
 #define PDM_THREAD_PRIORITY   7
@@ -235,3 +235,119 @@ size_t PDMClass::getBufferSize() {
 }
 
 PDMClass PDM;
+
+#else /* CONFIG_BOARD_ARDUINO_NANO_CONNECT */
+
+/* =====================================================================
+ *  Polling implementation for Nano RP2040 Connect.
+ *  The original thread + PDMDoubleBuffer architecture doesn't work
+ *  under LLEXT on RP2040: K_THREAD_DEFINE relies on a linker section
+ *  scanned only at boot, and PDMDoubleBuffer's k_malloc'd buffers
+ *  depend on global ctors the LLEXT runtime doesn't always invoke.
+ *
+ *  Instead: PDM.available() does a non-blocking dmic_read into an
+ *  internal buffer; PDM.read() drains it. _onReceive() fires from
+ *  inside available() on a fresh block. Sketches must call
+ *  PDM.available() periodically — registering a callback alone will
+ *  not deliver data.
+ * ===================================================================== */
+
+#define SLAB_BLOCK_NUM 4
+
+struct k_mem_slab pdm_slab;
+static uint8_t __aligned(4) pdm_slab_buffer[SLAB_BLOCK_SIZE * SLAB_BLOCK_NUM];
+static void (*_onReceive)(void) = NULL;
+
+static uint8_t pdm_read_buf[SLAB_BLOCK_SIZE];
+static size_t pdm_read_avail = 0;
+static size_t pdm_read_offset = 0;
+
+PDMClass::PDMClass() : pdm_init(false), active(false) {
+}
+
+PDMClass::~PDMClass() {
+}
+
+int PDMClass::begin(int channels, int sampleRate) {
+	if (!pdm_init) {
+		if (k_mem_slab_init(&pdm_slab, pdm_slab_buffer, SLAB_BLOCK_SIZE, SLAB_BLOCK_NUM) != 0) {
+			return 0;
+		}
+		pdm_init = true;
+	}
+
+	pdm_read_avail = 0;
+	pdm_read_offset = 0;
+
+	if (!active) {
+		if (arduino::pdm_configure(channels, sampleRate) < 0) {
+			return 0;
+		}
+		if (arduino::pdm_start() < 0) {
+			return 0;
+		}
+		active = true;
+	}
+	return 1;
+}
+
+void PDMClass::end() {
+	if (active) {
+		arduino::pdm_stop();
+		active = false;
+	}
+}
+
+int PDMClass::available() {
+	if (pdm_read_avail > pdm_read_offset) {
+		return (int)(pdm_read_avail - pdm_read_offset);
+	}
+
+	void *buffer = NULL;
+	size_t size = 0;
+	if (arduino::pdm_read(&buffer, &size) < 0 || buffer == NULL) {
+		return 0;
+	}
+
+	size_t to_copy = (size > SLAB_BLOCK_SIZE) ? SLAB_BLOCK_SIZE : size;
+	memcpy(pdm_read_buf, buffer, to_copy);
+	k_mem_slab_free(&pdm_slab, buffer);
+
+	pdm_read_avail = to_copy;
+	pdm_read_offset = 0;
+
+	if (_onReceive) {
+		_onReceive();
+	}
+
+	return (int)to_copy;
+}
+
+int PDMClass::read(void *buffer, size_t size) {
+	size_t avail = pdm_read_avail - pdm_read_offset;
+	if (size > avail) {
+		size = avail;
+	}
+	if (size == 0) {
+		return 0;
+	}
+	memcpy(buffer, &pdm_read_buf[pdm_read_offset], size);
+	pdm_read_offset += size;
+	return (int)size;
+}
+
+void PDMClass::onReceive(void (*func)(void)) {
+	_onReceive = func;
+}
+
+void PDMClass::setGain(int gain) {
+	arduino::pdm_gain(gain);
+}
+
+size_t PDMClass::getBufferSize() {
+	return SLAB_BLOCK_SIZE;
+}
+
+PDMClass PDM;
+
+#endif /* CONFIG_BOARD_ARDUINO_NANO_CONNECT */
