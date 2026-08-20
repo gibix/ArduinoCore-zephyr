@@ -1,0 +1,80 @@
+/*
+ * Copyright (c) Arduino s.r.l. and/or its affiliated companies
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * MCUboot overlay for Portenta H7 (STM32H747 M7 core).
+ *
+ * Partition layout (2MB internal flash):
+ *   0x08000000  256K  boot (MCUboot)
+ *   0x08040000  768K  slot0 (primary)
+ *   0x08100000  768K  slot1 (secondary/staging)
+ *   0x081C0000  256K  scratch
+ */
+
+/ {
+	chosen {
+		zephyr,code-partition = &boot_partition;
+		zephyr,uart-mcumgr = &board_cdc_acm_uart;
+	};
+
+	aliases {
+		mcuboot-led0 = &red_led;
+	};
+};
+
+/* Pull in the dfu_cookie reserved-memory region shared with the loader. */
+#include "../../variants/arduino_portenta_h7_stm32h747xx_m7/dfu_cookie.dtsi"
+
+/* Run from HSI at 64MHz — no PLL, no HSE.
+ * HSE needs the PF1550 PMIC to power the oscillator, and the PMIC needs I2C
+ * which needs clocks — chicken-and-egg. A bootloader doesn't need 400MHz. */
+&rcc {
+	clocks = <&clk_hsi>;
+	clock-frequency = <DT_FREQ_M(64)>;
+	d1cpre = <1>;
+	hpre = <1>;
+	d1ppre = <1>;
+	d2ppre1 = <1>;
+	d2ppre2 = <1>;
+	d3ppre = <1>;
+};
+
+&pll {
+	status = "disabled";
+};
+
+&clk_hse {
+	status = "disabled";
+};
+
+&flash0 {
+	reg = <0x8000000 DT_SIZE_K(2048)>;
+
+	/delete-node/ partitions;
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x00040000>;
+			read-only;
+		};
+
+		slot0_partition: partition@40000 {
+			label = "image-0";
+			reg = <0x00040000 0x000C0000>;
+		};
+
+		slot1_partition: partition@100000 {
+			label = "image-1";
+			reg = <0x00100000 0x000C0000>;
+		};
+
+		scratch_partition: partition@1c0000 {
+			label = "image-scratch";
+			reg = <0x001C0000 0x00040000>;
+		};
+	};
+};

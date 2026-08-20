@@ -6,14 +6,11 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
-#include <stm32_backup_domain.h>
+#include "dfu_cookie.h"
 
 void _on_1200_bps() {
-    stm32_backup_domain_enable_access();
-    uint32_t tmp = (uint32_t) & (RTC->BKP0R);
-    tmp += (RTC_BKP_DR0 * 4U);
-    *(__IO uint32_t *)tmp = (uint32_t)0xDF59;
-    stm32_backup_domain_disable_access();
+    DFU_COOKIE = DFU_DOUBLE_RESET_MAGIC;
+    __DSB();
     NVIC_SystemReset();
 }
 

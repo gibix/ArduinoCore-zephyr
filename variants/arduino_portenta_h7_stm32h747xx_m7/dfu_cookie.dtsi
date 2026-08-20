@@ -1,0 +1,38 @@
+/*
+ * Copyright (c) 2026 Arduino SA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Cross-image handoff word for entering DFU / MCUboot serial recovery.
+ *
+ * Both MCUboot (via CONFIG_BOOT_SERIAL_DOUBLE_RESET) and the loader/sketch
+ * (via _on_1200_bps()) must agree on where this cookie lives.  Deriving the
+ * address from devicetree keeps the two sides from drifting apart.
+ *
+ * DTCM (0x20000000, 128 KB) is core-coupled and survives system resets on
+ * Portenta H7 (verified by J-Link write-reset-read).  AXI SRAM does NOT
+ * survive because the PF1550 PMIC briefly drops VDD during reset.
+ *
+ * Cookie sits at top of DTCM: 0x2001FFE0.  DTCM is shrunk by 32 bytes.
+ *
+ * Included by both extra/mcuboot/portenta_h7.overlay and the variant overlay.
+ */
+&dtcm {
+	reg = <0x20000000 (DT_SIZE_K(128) - 32)>;
+};
+
+/ {
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		dfu_cookie: memory@2001ffe0 {
+			compatible = "zephyr,memory-region";
+			reg = <0x2001ffe0 32>;
+			zephyr,memory-region = "DFU_COOKIE";
+		};
+	};
+};

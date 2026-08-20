@@ -34,6 +34,7 @@ manifest:
           - thrift
           - mcuboot
           - nanopb
+          - zcbor
           - lvgl
           - fatfs
         path-allowlist:

@@ -114,6 +114,16 @@ for ext in elf bin hex uf2; do
         cp ${BUILD_DIR}/zephyr/zephyr.$ext firmwares/zephyr-$variant.$ext
     fi
 done
+
+# MCUboot: promote signed images, keep unsigned as .raw
+if [ -f ${BUILD_DIR}/zephyr/zephyr.signed.bin ]; then
+    mv firmwares/zephyr-$variant.bin firmwares/zephyr-$variant.raw.bin
+    cp ${BUILD_DIR}/zephyr/zephyr.signed.bin firmwares/zephyr-$variant.bin
+fi
+if [ -f ${BUILD_DIR}/zephyr/zephyr.signed.hex ]; then
+    mv firmwares/zephyr-$variant.hex firmwares/zephyr-$variant.raw.hex
+    cp ${BUILD_DIR}/zephyr/zephyr.signed.hex firmwares/zephyr-$variant.hex
+fi
 cp ${BUILD_DIR}/zephyr/zephyr.dts firmwares/zephyr-$variant.dts
 cp ${BUILD_DIR}/zephyr/.config firmwares/zephyr-$variant.config
 
