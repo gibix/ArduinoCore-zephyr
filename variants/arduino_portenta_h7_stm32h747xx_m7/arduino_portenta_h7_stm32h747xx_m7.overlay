@@ -346,10 +346,13 @@
 			reg = <0x00040000 0x000E0000>;
 		};
 
-		/* Overlaps slot0: window into the sketch portion of the image. */
-		user_sketch: partition@a0000 {
+		/* Overlaps slot0: window into the sketch portion of the image.
+		 * Must start AFTER the loader code ends (~607 KB).
+		 * Offset 0xA0000 within slot0 = flash offset 0xE0000.
+		 */
+		user_sketch: partition@e0000 {
 			label = "user_sketch";
-			reg = <0x000A0000 0x00080000>;
+			reg = <0x000E0000 0x00040000>;
 		};
 
 		slot1_partition: partition@120000 {

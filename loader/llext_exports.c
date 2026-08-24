@@ -522,3 +522,12 @@ EXPORT_SYMBOL(magic_location);
 FORCE_EXPORT_SYM(regulator_enable);
 FORCE_EXPORT_SYM(regulator_disable);
 #endif
+
+#if defined(CONFIG_WIREGUARD)
+FORCE_EXPORT_SYM(wireguard_peer_add);
+FORCE_EXPORT_SYM(net_ipaddr_parse_mask);
+FORCE_EXPORT_SYM(net_ipaddr_parse);
+FORCE_EXPORT_SYM(net_mask_len_to_netmask);
+FORCE_EXPORT_SYM(base64_decode);
+FORCE_EXPORT_SYM(net_mgmt_NET_REQUEST_VIRTUAL_INTERFACE_SET_PRIVATE_KEY);
+#endif
