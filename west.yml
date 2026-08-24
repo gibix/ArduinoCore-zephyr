@@ -17,6 +17,8 @@ manifest:
       url-base: https://github.com/facchinm
     - name: pillo79
       url-base: https://github.com/pillo79
+    - name: gibix
+      url-base: https://github.com/gibix
 
   projects:
     - name: zephyr
@@ -32,11 +34,10 @@ manifest:
           - tf-psa-crypto
           - segger
           - thrift
-          - mcuboot
           - nanopb
-          - zcbor
           - lvgl
           - fatfs
+          - zcbor
         path-allowlist:
           - modules/hal/*
 
@@ -54,3 +55,8 @@ manifest:
       # API changes broke the build. Update this SHA once a newer commit is
       # verified against the Zephyr revision above.
       revision: cf24edd66ab173d20f734e3f3350b1a1c053a904
+
+    - name: mcuboot
+      remote: gibix
+      revision: 9afc48fdab665730ed9db4a25a5e4a371cd44785
+      path: bootloader/mcuboot

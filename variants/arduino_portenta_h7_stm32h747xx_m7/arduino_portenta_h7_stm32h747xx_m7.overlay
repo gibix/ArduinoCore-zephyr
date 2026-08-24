@@ -343,25 +343,18 @@
 
 		slot0_partition: partition@40000 {
 			label = "image-0";
-			reg = <0x00040000 0x000C0000>;
+			reg = <0x00040000 0x000E0000>;
 		};
 
-		/* Overlaps slot0: window into the sketch portion of the image.
-		 * Must start past the loader binary (552 KB as of 2026-08-21).
-		 * Aligned to STM32H7's 128 KB erase sector boundary. */
-		user_sketch: partition@e0000 {
+		/* Overlaps slot0: window into the sketch portion of the image. */
+		user_sketch: partition@a0000 {
 			label = "user_sketch";
-			reg = <0x000E0000 0x00020000>;
+			reg = <0x000A0000 0x00080000>;
 		};
 
-		slot1_partition: partition@100000 {
+		slot1_partition: partition@120000 {
 			label = "image-1";
-			reg = <0x00100000 0x000C0000>;
-		};
-
-		scratch_partition: partition@1c0000 {
-			label = "image-scratch";
-			reg = <0x001C0000 0x00040000>;
+			reg = <0x00120000 0x000E0000>;
 		};
 	};
 };

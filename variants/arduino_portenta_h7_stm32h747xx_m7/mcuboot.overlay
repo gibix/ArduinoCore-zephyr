@@ -6,9 +6,8 @@
  *
  * Partition layout (2MB internal flash):
  *   0x08000000  256K  boot (MCUboot)
- *   0x08040000  768K  slot0 (primary)
- *   0x08100000  768K  slot1 (secondary/staging)
- *   0x081C0000  256K  scratch
+ *   0x08040000  896K  slot0 (primary)
+ *   0x08120000  896K  slot1 (secondary/staging)
  */
 
 / {
@@ -23,7 +22,7 @@
 };
 
 /* Pull in the dfu_cookie reserved-memory region shared with the loader. */
-#include "../../variants/arduino_portenta_h7_stm32h747xx_m7/dfu_cookie.dtsi"
+#include "dfu_cookie.dtsi"
 
 /* Run from HSI at 64MHz — no PLL, no HSE.
  * HSE needs the PF1550 PMIC to power the oscillator, and the PMIC needs I2C
@@ -64,17 +63,12 @@
 
 		slot0_partition: partition@40000 {
 			label = "image-0";
-			reg = <0x00040000 0x000C0000>;
+			reg = <0x00040000 0x000E0000>;
 		};
 
-		slot1_partition: partition@100000 {
+		slot1_partition: partition@120000 {
 			label = "image-1";
-			reg = <0x00100000 0x000C0000>;
-		};
-
-		scratch_partition: partition@1c0000 {
-			label = "image-scratch";
-			reg = <0x001C0000 0x00040000>;
+			reg = <0x00120000 0x000E0000>;
 		};
 	};
 };
