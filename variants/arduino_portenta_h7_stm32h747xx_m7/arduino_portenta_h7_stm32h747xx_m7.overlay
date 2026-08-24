@@ -362,6 +362,11 @@
 	};
 };
 
+/* Reduce SDIO clock for CYW4343W stability (max 50 MHz, try 25 MHz first) */
+&sdmmc1 {
+	max-bus-freq = <25000000>;
+};
+
 
 /* Include common flash filesystem configuration */
 qspi_flash: &mx25l12833f {};
