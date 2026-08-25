@@ -474,7 +474,7 @@
 		cdc-acm-serial = <&board_cdc_acm_uart>; /* 'Serial' object is managed by SerialUSB */
 		serials = <&uart9>, <&uart7>, <&uart6>, <&uart5>; /* 'Serial1' onwards */
 		i2cs = <&iic0>, <&iic1>, <&i2c3>;
-		spis = <&spi1>;
+		spis = <&sci4_spi>, <&spi1>;
 		pwms = <&pwm1 0 PWM_HZ(490) PWM_POLARITY_NORMAL>,
 		       <&pwm8 1 PWM_HZ(490) PWM_POLARITY_NORMAL>,
 		       <&pwm3 0 PWM_HZ(490) PWM_POLARITY_NORMAL>,
