@@ -67,6 +67,9 @@ build.extra_flags=
 build.extra_ldflags=
 build.link_mode=dynamic
 build.boot_mode=wait
+build.ota.magic=
+build.ota.offset=
+build.ota.mcuboot_args=
 upload.extension=elf-zsk.bin
 
 build.ldscript.path={runtime.platform.path}/variants/_ldscripts
@@ -163,6 +166,7 @@ recipe.objcopy.hex.pattern="{compiler.path}{compiler.elf2hex.cmd}" {compiler.elf
 ## Mangle the file
 recipe.hooks.objcopy.postobjcopy.1.pattern="{runtime.tools.zephyr-sketch-tool.path}/zephyr-sketch-tool" {build.zsk_args.debug} {build.zsk_args.mode-{build.link_mode}} {build.zsk_args.startup-mode-{build.boot_mode}} "{build.path}/{build.project_name}.elf"
 recipe.hooks.objcopy.postobjcopy.2.pattern="{runtime.tools.zephyr-sketch-tool.path}/zephyr-sketch-tool" {build.zsk_args.debug} {build.zsk_args.mode-{build.link_mode}} {build.zsk_args.startup-mode-{build.boot_mode}} "{build.path}/{build.project_name}.bin"
+recipe.hooks.objcopy.postobjcopy.3.pattern=sh -c 'test -n "{build.ota.magic}" && "{runtime.tools.zephyr-sketch-tool.path}/zephyr-sketch-tool" -ota -ota-loader "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" -ota-sketch "{build.path}/{build.project_name}.{upload.extension}" -ota-offset "{build.ota.offset}" -ota-magic "{build.ota.magic}" {build.ota.mcuboot_args} || true'
 
 ## Compute size
 recipe.size.pattern="{runtime.tools.zephyr-check-size.path}/zephyr-check-size" {build.link_mode} "{runtime.platform.path}/firmwares/zephyr-{build.variant}.config" "{build.path}/{build.project_name}.{upload.extension}" "{build.path}/{build.project_name}.elf"
@@ -196,6 +200,7 @@ erase.pattern=
 # Generated files used at upload time
 upload.artifacts.loader={runtime.platform.path}/firmwares/{bootloader.file}
 upload.artifacts.sketch={build.path}/{build.project_name}.{upload.extension}
+upload.artifacts.bundle={build.path}/{build.project_name}.bundle.bin
 
 # Expects a {loader.cmd} and a {sketch.cmd} to be defined in the tool's
 # section. The loader is flashed if it does not match the current (maybe
@@ -308,6 +313,23 @@ tools.picotool.bootloader.pattern={tools.patterns.flash-loader-only}
 tools.imgtool.path={runtime.tools.imgtool.path}
 tools.imgtool.cmd=imgtool
 tools.imgtool.flags=sign --key "{build.keys.keychain}/{build.keys.sign_key}" --encrypt "{build.keys.keychain}/{build.keys.encrypt_key}" "{build.path}/{build.project_name}.bin" "{build.path}/{build.project_name}.bin" --align {build.alignment} --max-align {build.alignment} --version {build.version} --header-size {build.header_size} --pad-header --slot-size {build.slot_size}
+
+
+#
+# ZEPHYR-SKETCH-TOOL (SMP upload via MCUboot serial recovery)
+#
+
+upload.smp_chunk=960
+
+tools.zephyr-sketch-tool.path={runtime.tools.zephyr-sketch-tool.path}
+tools.zephyr-sketch-tool.cmd=zephyr-sketch-tool
+tools.zephyr-sketch-tool.upload.params.verbose=-smp-debug
+tools.zephyr-sketch-tool.upload.params.quiet=
+tools.zephyr-sketch-tool.upload.pattern="{path}/{cmd}" -smp -smp-port "{serial.port}" -smp-chunk {upload.smp_chunk} -smp-image "{upload.artifacts.bundle}" -smp-slot 0
+
+tools.zephyr-sketch-tool.bootloader.params.verbose=-smp-debug
+tools.zephyr-sketch-tool.bootloader.params.quiet=
+tools.zephyr-sketch-tool.bootloader.pattern="{path}/{cmd}" -smp -smp-port "{serial.port}" -smp-chunk {upload.smp_chunk} -smp-image "{upload.artifacts.loader}" -smp-slot 0
 
 
 #

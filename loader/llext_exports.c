@@ -182,6 +182,10 @@ FORCE_EXPORT_SYM(_net_l2_ETHERNET);
 FORCE_EXPORT_SYM(net_mgmt_NET_REQUEST_ETHERNET_SET_MAC_ADDRESS);
 #endif
 
+#if defined(CONFIG_NET_L2_VIRTUAL)
+FORCE_EXPORT_SYM(_net_l2_VIRTUAL);
+#endif
+
 #if defined(CONFIG_NET_DHCPV4)
 FORCE_EXPORT_SYM(net_dhcpv4_start);
 FORCE_EXPORT_SYM(net_dhcpv4_restart);
@@ -521,6 +525,13 @@ EXPORT_SYMBOL(magic_location);
 #if defined(CONFIG_REGULATOR)
 FORCE_EXPORT_SYM(regulator_enable);
 FORCE_EXPORT_SYM(regulator_disable);
+
+FORCE_EXPORT_SYM(wireguard_peer_add);
+FORCE_EXPORT_SYM(net_ipaddr_parse_mask);
+FORCE_EXPORT_SYM(net_ipaddr_parse);
+FORCE_EXPORT_SYM(net_mask_len_to_netmask);
+FORCE_EXPORT_SYM(base64_decode);
+FORCE_EXPORT_SYM(net_mgmt_NET_REQUEST_VIRTUAL_INTERFACE_SET_PRIVATE_KEY);
 #endif
 
 #if defined(CONFIG_WIREGUARD)

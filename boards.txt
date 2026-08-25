@@ -233,6 +233,9 @@ portentah7.build.zephyr_hals=hal_stm32 hal_infineon
 portentah7.build.zephyr_toolchain=arm-zephyr-eabi
 portentah7.build.artifact=zephyr_main
 portentah7.build.variant=arduino_portenta_h7_stm32h747xx_m7
+portentah7.build.ota.magic=0x2341065B
+portentah7.build.ota.offset=0xA0000
+portentah7.build.ota.mcuboot_args=-mcuboot-header-size 0x400 -mcuboot-slot-size 0xE0000 -mcuboot-bundle-out "{upload.artifacts.bundle}"
 
 portentah7.build.extra_flags=
 portentah7.build.postbuild.cmd="{tools.imgtool.path}/{tools.imgtool.cmd}" exit
