@@ -77,11 +77,47 @@ void WiFiClass::registerScanEventCallback() {
 	net_mgmt_add_event_callback(&wifiScanCb);
 }
 
+const char *WiFiClass::driverVersion() {
+	struct wifi_version ver = {};
+
+	if (netif == nullptr) {
+		wifiState.sta_iface = net_if_get_wifi_sta();
+		netif = wifiState.sta_iface;
+	}
+
+	if (netif == nullptr ||
+		net_mgmt(NET_REQUEST_WIFI_VERSION, netif, &ver, sizeof(ver)) != 0 ||
+		ver.drv_version == nullptr) {
+		return "unknown";
+	}
+
+	return ver.drv_version;
+}
+
 const char *WiFiClass::firmwareVersion() {
 #if defined(ARDUINO_PORTENTA_C33)
 	return "v1.5.0";
 #else
-	return "v0.0.0";
+	struct wifi_version ver = {};
+
+	if (netif == nullptr) {
+		wifiState.sta_iface = net_if_get_wifi_sta();
+		netif = wifiState.sta_iface;
+	}
+
+	if (netif == nullptr ||
+		net_mgmt(NET_REQUEST_WIFI_VERSION, netif, &ver, sizeof(ver)) != 0 ||
+		ver.fw_version == nullptr || ver.fw_version[0] == '\0') {
+		return "v0.0.0";
+	}
+
+	/* The driver owns the string, but copy it so the caller is not exposed to
+	   the driver re-issuing AT+GMR underneath it. */
+	wifiState.fw_version[0] = 'v';
+	strncpy(&wifiState.fw_version[1], ver.fw_version, sizeof(wifiState.fw_version) - 2);
+	wifiState.fw_version[sizeof(wifiState.fw_version) - 1] = '\0';
+
+	return wifiState.fw_version;
 #endif
 }
 
@@ -221,16 +257,27 @@ int WiFiClass::status() {
 		return WL_NO_SHIELD;
 	}
 
+	/* WIFI_STATE_UNKNOWN sorts *above* WIFI_STATE_COMPLETED in the enum, so it
+	   must be rejected before the ordered comparison below. The esp_at driver
+	   leaves the state at UNKNOWN whenever "AT+CWJAP?" reports no AP, i.e. any
+	   time the module is not associated. */
+	if (if_status.state == WIFI_STATE_UNKNOWN) {
+		return WL_DISCONNECTED;
+	}
+
+	if (if_status.state == WIFI_STATE_INTERFACE_DISABLED) {
+		return WL_DISCONNECTED;
+	}
+
 	if (if_status.iface_mode != WIFI_MODE_AP) {
 		memcpy(&wifiState.sta_state, &if_status, sizeof(wifiState.sta_state));
 	}
 
 	if (if_status.state >= WIFI_STATE_ASSOCIATED) {
 		return WL_CONNECTED;
-	} else {
-		return WL_DISCONNECTED;
 	}
-	return WL_NO_SHIELD;
+
+	return WL_DISCONNECTED;
 }
 
 int8_t WiFiClass::scanNetworks() {
