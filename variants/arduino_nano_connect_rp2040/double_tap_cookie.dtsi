@@ -1,0 +1,26 @@
+/*
+ * Copyright (c) Arduino s.r.l. and/or its affiliated companies
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Double-tap cookie in upper SRAM, shared between SFU and loader.
+ * 0x20041c00 sits below the boot2 scratch area (0x20041f00+).
+ * sram0 is shrunk by 1 KB so neither linker allocates into it.
+ */
+&sram0 {
+	reg = <0x20000000 (DT_SIZE_K(264) - 1024)>;
+};
+
+/ {
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		double_tap_cookie: memory@20041c00 {
+			compatible = "zephyr,memory-region";
+			reg = <0x20041c00 32>;
+			zephyr,memory-region = "DOUBLE_TAP_COOKIE";
+		};
+	};
+};

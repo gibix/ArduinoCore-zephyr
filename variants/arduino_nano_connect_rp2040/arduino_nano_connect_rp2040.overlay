@@ -275,13 +275,14 @@
 	};
 };
 
-&flash0 {
-	partitions {
-		user_sketch: partition@e0000 {
-			compatible = "zephyr,mapped-partition";
-			reg = <0x0E0000 0x20000>;
-		};
-	};
+#include "partitions.dtsi"
+
+&code_partition {
+	compatible = "zephyr,mapped-partition";
+};
+
+&user_sketch {
+	compatible = "zephyr,mapped-partition";
 };
 
 nina_spi: &spi1 {
@@ -289,12 +290,9 @@ nina_spi: &spi1 {
 	/delete-node/ nina_w102@0;
 };
 
-/*
- * Alias for NINA WiFi UART (uart1) without hardware flow control,
- * used for firmware flashing mode. Normal operation uses uart1 directly
- * (with hw-flow-control enabled above). Having both lets Arduino sketch
- * code select the right configuration at compile time.
- */
+#include "double_tap_cookie.dtsi"
+
+/* uart1 alias without hw-flow-control, used for NINA firmware flashing. */
 uart2: &uart1 {
 	/delete-node/ nina_prog;
 };

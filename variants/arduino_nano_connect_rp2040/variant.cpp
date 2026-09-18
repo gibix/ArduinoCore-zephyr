@@ -7,17 +7,9 @@
 #include "Arduino.h"
 #include <stdint.h>
 
-/*
- * Arm the loader's double_tap magic and reset. The loader's
- * double_tap_check() (loader/fixups.c) sees the magic on next boot and
- * enters USB BOOTSEL via libpico's reset_usb_boot(). Magic values must
- * match those in loader/fixups.c.
- */
-extern "C" uint32_t magic_location[3];
+#include "double_tap_cookie.h"
 
 void _on_1200_bps() {
-    magic_location[0] = 0xf01681de;
-    magic_location[1] = 0xbd729b29;
-    magic_location[2] = 0xd359be7a;
+    double_tap_cookie_arm();
     NVIC_SystemReset();
 }

@@ -522,11 +522,6 @@ EXPORT_SYMBOL(TYPE_SECTION_START(device));
 EXPORT_SYMBOL(TYPE_SECTION_END(device));
 #endif
 
-#if defined(CONFIG_BOARD_ARDUINO_NANO_CONNECT)
-extern uint32_t magic_location[3];
-EXPORT_SYMBOL(magic_location);
-#endif
-
 #if defined(CONFIG_REGULATOR)
 FORCE_EXPORT_SYM(regulator_enable);
 FORCE_EXPORT_SYM(regulator_disable);

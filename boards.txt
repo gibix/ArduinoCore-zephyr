@@ -668,9 +668,17 @@ nano_connect.upload.native_usb=true
 
 nano_connect.upload.familyid=0xe48bff56
 
+nano_connect.build.ota.magic=0x2341005E
+nano_connect.build.ota.sketch_offset=0xF0000
+
+nano_connect.sfu.file=loader/blobs/rp2040_sfu.bin
+nano_connect.sfu.size=0x10000
+nano_connect.sfu.familyid=0xe48bff56
+nano_connect.sfu.base_address=0x10000000
+
 nano_connect.bootloader.tool=picotool
 nano_connect.bootloader.tool.default=picotool
-nano_connect.bootloader.file=zephyr-{build.variant}.uf2
+nano_connect.bootloader.file=zephyr-{build.variant}-sfu.uf2
 
 nano_connect.debug.tool=gdb
 nano_connect.debug.server.openocd.scripts.0=interface/{programmer.protocol}.cfg

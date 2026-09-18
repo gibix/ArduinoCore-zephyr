@@ -57,6 +57,12 @@ if ! [ -z "$chosen_board" ]; then
 	if [ x$2 == x"--debug" ]; then
 		args+=(-- -DEXTRA_CONF_FILE=../extra/debug.conf)
 	fi
+
+	# check if the board requires to prepend a second stage bootloader to the loader
+	sfu_file=$(jq -cr '.sfu_file' <<< "$chosen_board")
+	sfu_size=$(jq -cr '.sfu_size' <<< "$chosen_board")
+	sfu_familyid=$(jq -cr '.sfu_familyid' <<< "$chosen_board")
+	sfu_base_address=$(jq -cr '.sfu_base_address' <<< "$chosen_board")
 else
 	# expect Zephyr-compatible target and args
 	target=$1
@@ -116,6 +122,21 @@ for ext in elf bin hex uf2; do
 done
 cp ${BUILD_DIR}/zephyr/zephyr.dts firmwares/zephyr-$variant.dts
 cp ${BUILD_DIR}/zephyr/.config firmwares/zephyr-$variant.config
+
+# Prepend SFU blob to loader when <board>.sfu.file is set in boards.txt.
+if [ "$sfu_file" ] ; then
+    dd if=${sfu_file} of=firmwares/zephyr-$variant-sfu.bin conv=notrunc status=none
+
+    offset=$(printf "%d" "${sfu_size}")
+    dd if=firmwares/zephyr-$variant.bin of=firmwares/zephyr-$variant-sfu.bin bs=1 seek=${offset} conv=notrunc status=none
+
+    # Convert combined binary to UF2 when familyid is set.
+    if [ "$sfu_familyid" ] ; then
+        BIN2UF2_BIN=$(mktemp -d)/bin2uf2
+        (cd tools/bin2uf2 && go build -o "${BIN2UF2_BIN}" .)
+        "${BIN2UF2_BIN}" "${sfu_base_address}" "${sfu_familyid}" firmwares/zephyr-$variant-sfu.bin firmwares/zephyr-$variant-sfu.uf2
+    fi
+fi
 
 # Generate the provides.ld file for linked builds
 echo "Generating exported symbol scripts"

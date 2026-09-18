@@ -1,0 +1,15 @@
+/* SFU overlay: code-partition = SFU region so boot2 is included. */
+
+#include "../../../variants/arduino_nano_connect_rp2040/partitions.dtsi"
+
+/ {
+	chosen {
+		zephyr,code-partition = &sfu_partition;
+	};
+};
+
+&sfu_partition {
+	compatible = "zephyr,mapped-partition";
+};
+
+#include "../../../variants/arduino_nano_connect_rp2040/double_tap_cookie.dtsi"

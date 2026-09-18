@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) Arduino s.r.l. and/or its affiliated companies
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Shared between SFU and loader so both agree on partition boundaries.
+ *
+ *   boot2          0x000 ..  0x100     256 B  (inside SFU image)
+ *   sfu_partition   0x100 ..  0x10000   64 KB  SFU updater
+ *   code_partition 0x10000 .. 0xF0000  896 KB  loader
+ *   user_sketch    0xF0000 .. 0x110000 128 KB  LLEXT sketch
+ *   ota_partition  0x110000 .. 0x210000  1 MB  LittleFS staging
+ */
+/delete-node/ &code_partition;
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+
+		sfu_partition: partition@100 {
+			label = "sfu";
+			reg = <0x100 0xFF00>;
+		};
+
+		code_partition: partition@10000 {
+			reg = <0x10000 0xE0000>;
+		};
+
+		user_sketch: partition@f0000 {
+			reg = <0xF0000 0x20000>;
+		};
+
+		ota_partition: partition@110000 {
+			label = "ota";
+			reg = <0x110000 0x100000>;
+		};
+	};
+};
+
+/ {
+	fstab {
+		compatible = "zephyr,fstab";
+
+		ota_fs: ota_fs {
+			compatible = "zephyr,fstab,littlefs";
+			automount;
+			mount-point = "/ota:";
+			partition = <&ota_partition>;
+			read-size = <16>;
+			prog-size = <256>;
+			cache-size = <256>;
+			lookahead-size = <32>;
+			block-cycles = <512>;
+		};
+	};
+};
