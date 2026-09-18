@@ -30,6 +30,16 @@ config OTA_SKETCH_TEMP_PATH_POSTFIX
 	  String that is appended to sketch ota filename when it is still not ready to be loaded,
 	  a rename operation is required to make the ota file enabled for next reboot
 
+config OTA_LOADER_UPDATE_PATH
+	string "Path checked for a loader update binary"
+	default "/ota:/UPDATE.BIN.OTA" if BOARD_ARDUINO_PORTENTA_C33
+	default "/ota:/UPDATE.BIN"
+
+config OTA_LOADER_TEMP_PATH_POSTFIX
+	string "Temporary postfix for in-progress loader OTA"
+	default "" if SOC_SERIES_STM32H7X
+	default ".TEMP"
+
 config OTA_TRANSCRIPTION_CHUNK_SIZE
 	int "The size of the stack allocated chunk in bytes for transcription"
 	default 1024
