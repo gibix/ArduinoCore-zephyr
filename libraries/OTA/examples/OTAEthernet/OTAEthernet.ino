@@ -1,12 +1,9 @@
 /*
  * OTA sketch update over Ethernet.
  *
- * Downloads an .ota update file over plain HTTP and asks the loader to install
- * it on the next boot.
- *
- * To produce the .ota file, compile the sketch you want to install and take the
- * "<sketch>.elf-zsk.bin.ota" artifact from the build directory, then serve it
- * from any HTTP server, for example:
+ * Downloads a raw .bin sketch image over plain HTTP and installs it on
+ * the next boot.  No .ota container — the server hosts the plain
+ * "<sketch>.elf-zsk.bin" artifact produced by the build.  Serve it with:
  *
  *   python3 -m http.server 8000
  *
@@ -17,13 +14,120 @@
 
 #include <ZephyrClient.h>
 #include <ZephyrEthernet.h>
-#include <OTA.h>
+#include <zephyr/fs/fs.h>
+#include <zephyr/autoconf.h>
 
-const char *server = "192.168.1.10";  // host serving the update
+#ifndef CONFIG_OTA
+#error "This variant's loader was built without CONFIG_OTA."
+#endif
+
+#define STAGING_PATH CONFIG_OTA_SKETCH_UPDATE_PATH CONFIG_OTA_SKETCH_TEMP_PATH_POSTFIX
+
+extern "C" {
+int ota_sketch_ready(void);
+int ota_sketch_start(void);
+}
+
+const char *server = "192.168.1.10";
 const uint16_t port = 8000;
-const char *path = "/UPDATE.ota";
+const char *path = "/UPDATE.bin";
 
 ZephyrClient client;
+
+static long httpGet(Client &c, const char *host, uint16_t port,
+                    const char *path, struct fs_file_t *out) {
+  if (!c.connect(host, port)) {
+    Serial.println("Connection failed");
+    return -1;
+  }
+
+  c.print("GET ");
+  c.print(path);
+  c.print(" HTTP/1.1\r\nHost: ");
+  c.print(host);
+  c.print("\r\nConnection: close\r\n\r\n");
+
+  char line[128];
+  bool first = true;
+  long content_length = -1;
+  uint32_t last = millis();
+
+  while (true) {
+    if (!c.available()) {
+      if (!c.connected() || millis() - last > 10000) {
+        c.stop();
+        return -1;
+      }
+      continue;
+    }
+    last = millis();
+
+    size_t n = c.readBytesUntil('\n', line, sizeof(line) - 1);
+    line[n] = '\0';
+    if (n > 0 && line[n - 1] == '\r') {
+      line[n - 1] = '\0';
+    }
+
+    if (first) {
+      if (strncmp(line, "HTTP/1.", 7) != 0 || atoi(line + 9) != 200) {
+        Serial.print("HTTP error: ");
+        Serial.println(line);
+        c.stop();
+        return -1;
+      }
+      first = false;
+      continue;
+    }
+
+    if (line[0] == '\0') {
+      break;
+    }
+
+    if (strncasecmp(line, "Content-Length:", 15) == 0) {
+      content_length = atol(line + 15);
+    }
+  }
+
+  if (content_length <= 0) {
+    Serial.println("Missing or zero Content-Length");
+    c.stop();
+    return -1;
+  }
+
+  uint8_t buf[512];
+  long received = 0;
+  last = millis();
+
+  while (received < content_length) {
+    int avail = c.available();
+    if (avail <= 0) {
+      if (!c.connected() || millis() - last > 10000) {
+        break;
+      }
+      continue;
+    }
+
+    size_t want = (size_t)(content_length - received);
+    if (want > sizeof(buf)) {
+      want = sizeof(buf);
+    }
+    int got = c.read(buf, want);
+    if (got <= 0) {
+      continue;
+    }
+
+    if (fs_write(out, buf, got) != got) {
+      Serial.println("Filesystem write failed");
+      c.stop();
+      return -1;
+    }
+    received += got;
+    last = millis();
+  }
+
+  c.stop();
+  return received == content_length ? received : -1;
+}
 
 void setup() {
   Serial.begin(115200);
@@ -33,28 +137,25 @@ void setup() {
 
   Serial.println("OTA update over Ethernet");
 
-  if (!OTA.isOtaCapable()) {
-    Serial.println("No OTA storage on this board.");
-    return;
-  }
-
-  // In Zephyr the interface has to be up before Ethernet.begin() can get a lease.
   while (Ethernet.linkStatus() != LinkON) {
-    Serial.println("Waiting for link on");
+    Serial.println("Waiting for link...");
     delay(100);
   }
 
   if (Ethernet.begin() == 0) {
-    Serial.println("DHCP configuration failed.");
+    Serial.println("DHCP failed");
     return;
   }
 
-  Serial.print("Connected, IP address: ");
+  Serial.print("IP: ");
   Serial.println(Ethernet.localIP());
 
-  if (OTA.begin() != OTAClass::Error::None) {
-    Serial.print("begin() failed: ");
-    Serial.println(OTA.errorString());
+  fs_unlink(STAGING_PATH);
+
+  struct fs_file_t file;
+  fs_file_t_init(&file);
+  if (fs_open(&file, STAGING_PATH, FS_O_CREATE | FS_O_WRITE) < 0) {
+    Serial.println("Cannot open staging file");
     return;
   }
 
@@ -62,27 +163,29 @@ void setup() {
   Serial.print(server);
   Serial.println(path);
 
-  if (OTA.readFrom(client, server, port, path) < 0) {
-    Serial.print("Download failed: ");
-    Serial.println(OTA.errorString());
+  long len = httpGet(client, server, port, path, &file);
+  fs_close(&file);
+
+  if (len < 0) {
+    Serial.println("Download failed");
+    fs_unlink(STAGING_PATH);
     return;
   }
 
-  Serial.print("Staged ");
-  Serial.print(OTA.length());
+  Serial.print("Downloaded ");
+  Serial.print(len);
   Serial.println(" bytes");
 
-  if (OTA.update() != OTAClass::Error::None) {
-    Serial.print("Update failed: ");
-    Serial.println(OTA.errorString());
+  if (ota_sketch_ready() < 0) {
+    Serial.println("Failed to mark update as ready");
     return;
   }
 
-  Serial.println("Update ready, rebooting...");
+  Serial.println("Rebooting...");
   Serial.flush();
   delay(100);
 
-  OTA.reset();
+  ota_sketch_start();
 }
 
 void loop() {
