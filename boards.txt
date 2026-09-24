@@ -791,11 +791,10 @@ nano_chandler.upload.vid=0x2341
 # MCUboot in recovery, i.e. CONFIG_CDC_ACM_SERIAL_PID in
 # variants/.../mcuboot.conf. 0x007e above is the running loader.
 nano_chandler.upload.pid=0x018e
-# This board's bootloader has CONFIG_BOOT_LINE_BUFS=16, but smpmgr's frame
-# sizing from line-buffers × line-length can exceed CONFIG_BOOT_SERIAL_MAX_-
-# RECEIVE_SIZE (1024) if we tell it 16. The platform default (8) keeps the
-# decoded frame under 1024 and the throughput difference is negligible (flash-
-# programming-bound, not turnaround-bound), so no override here.
+# This board's bootloader has CONFIG_BOOT_LINE_BUFS=16, but the default
+# smp_chunk (480 B, 6 NLIP lines) stays well under CONFIG_BOOT_SERIAL_MAX_-
+# RECEIVE_SIZE (1024). The throughput difference vs. a larger chunk is
+# negligible (flash-programming-bound, not turnaround-bound), so no override.
 nano_chandler.upload.use_1200bps_touch=true
 nano_chandler.upload.wait_for_upload_port=true
 nano_chandler.upload.native_usb=true

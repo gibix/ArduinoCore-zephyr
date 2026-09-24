@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 )
 
 func main() {
@@ -27,7 +28,42 @@ func main() {
 	var otaOffset = flag.String("ota-offset", "", "[ota] sketch offset in merged binary (hex)")
 	var otaMagic = flag.String("ota-magic", "", "[ota] board magic number (hex, 32-bit)")
 
+	// SMP mode: push an image to a board sitting in MCUboot serial recovery.
+	var smp = flag.Bool("smp", false, "SMP mode: upload an image over mcumgr/SMP")
+	var smpPort = flag.String("smp-port", "", "[smp] serial port of the board in recovery mode")
+	var smpImage = flag.String("smp-image", "", "[smp] image to upload")
+	var smpSlot = flag.Int("smp-slot", 0, "[smp] target slot (0/1 = primary, 2 = secondary, 3 = image 1 primary)")
+	var smpChunk = flag.Int("smp-chunk", smpDefaultChunk, "[smp] payload bytes per request")
+	var smpDebug = flag.Bool("smp-debug", false, "[smp] dump every protocol line to stderr")
+	var smpNoReset = flag.Bool("smp-no-reset", false, "[smp] leave the board in recovery instead of resetting")
+	var smpResetOnly = flag.Bool("smp-reset-only", false, "[smp] send only a reset command, no upload")
+	var smpTimeout = flag.Int("smp-timeout", 2, "[smp] seconds to wait for each response, per attempt")
+
 	flag.Parse()
+
+	if *smp {
+		timeout := time.Duration(*smpTimeout) * time.Second
+		if *smpResetOnly {
+			if *smpPort == "" {
+				fmt.Printf("SMP reset error: -smp-port is required\n")
+				os.Exit(1)
+			}
+			if err := runSMPResetOnly(*smpPort, timeout, *smpDebug); err != nil {
+				fmt.Printf("SMP reset error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+		if *smpPort == "" || *smpImage == "" {
+			fmt.Printf("SMP upload error: -smp-port and -smp-image are required\n")
+			os.Exit(1)
+		}
+		if err := runSMPUpload(*smpPort, "", *smpImage, *smpSlot, *smpChunk, !*smpNoReset, false, timeout, *smpDebug); err != nil {
+			fmt.Printf("SMP upload error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if *ota {
 		if err := runOTA(*otaLoader, *otaSketch, *otaOffset, *otaMagic, *otaSketch); err != nil {

@@ -354,7 +354,7 @@ tools.dfu-util.bootloader.pattern={tools.patterns.flash-loader-only}
 # normal case.
 #
 # Multi-image MCUboot: loader and sketch are separate images, uploaded
-# independently. Stock `mcumgr` / smpmgr speaks the same SMP protocol.
+# independently via zephyr-sketch-tool's built-in SMP client.
 #
 # Slot numbering (DIRECT_IMAGE_UPLOAD with UPDATEABLE_IMAGE_NUMBER=2):
 # flash_area_id_from_direct_image() maps the SMP `image` field as:
@@ -369,24 +369,20 @@ tools.dfu-util.bootloader.pattern={tools.patterns.flash-loader-only}
 # ~219-220) and reused here. The loader resolves to
 # firmwares/zephyr-{build.variant}.bin via {bootloader.file} in boards.txt.
 
-# Line buffer count for smpmgr's serial framing. smpmgr derives the chunk size
-# from line-buffers × line-length (128), and the decoded frame must stay within
-# CONFIG_BOOT_SERIAL_MAX_RECEIVE_SIZE (1024). With 8 buffers the frame is ~651
-# decoded bytes, comfortably under 1024.
-upload.smp_line_buffers=8
-
-# smpmgr (Python SMP client) for mcumgr/SMP uploads.
-smpmgr.cmd={runtime.platform.path}/venv/bin/smpmgr
+# Chunk size for the SMP client. 480 bytes keeps a frame within 6 NLIP lines,
+# one spare buffer below CONFIG_BOOT_LINE_BUFS=8, and fits comfortably in
+# CONFIG_BOOT_SERIAL_MAX_RECEIVE_SIZE (1024).
+upload.smp_chunk=480
 
 tools.zephyr-smp.upload.params.verbose=
 tools.zephyr-smp.upload.params.quiet=
 
 # Loader: upload to slot 0 (image 0 primary).
-zephyr-smp.loader.upload="{smpmgr.cmd}" --port "{serial.port}" --line-buffers {upload.smp_line_buffers} image upload "{upload.artifacts.loader}" --slot 0
+zephyr-smp.loader.upload="{runtime.tools.zephyr-sketch-tool.path}/zephyr-sketch-tool" -smp -smp-port "{serial.port}" -smp-image "{upload.artifacts.loader}" -smp-slot 0 -smp-chunk {upload.smp_chunk} -smp-no-reset
 # Sketch: upload to slot 3 (→ slot2_partition, image 1 primary) as raw binary.
-zephyr-smp.sketch.upload="{smpmgr.cmd}" --port "{serial.port}" --line-buffers {upload.smp_line_buffers} image upload "{upload.artifacts.sketch}" --slot 3 --format any
+zephyr-smp.sketch.upload="{runtime.tools.zephyr-sketch-tool.path}/zephyr-sketch-tool" -smp -smp-port "{serial.port}" -smp-image "{upload.artifacts.sketch}" -smp-slot 3 -smp-chunk {upload.smp_chunk} -smp-no-reset
 # Reset after upload.
-zephyr-smp.reset="{smpmgr.cmd}" --port "{serial.port}" os reset
+zephyr-smp.reset="{runtime.tools.zephyr-sketch-tool.path}/zephyr-sketch-tool" -smp -smp-port "{serial.port}" -smp-reset-only
 
 # If the loader changed: upload loader + sketch + reset.
 # If the loader matches: upload sketch + reset.
