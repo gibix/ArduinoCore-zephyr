@@ -45,3 +45,11 @@ zephyr_loader.name=Zephyr loader (in-application, no programmer needed)
 zephyr_loader.communication=USB
 zephyr_loader.protocol=
 zephyr_loader.upload.artifacts.loader={bootloader.updater}
+
+dfu.name=DFU (USB)
+dfu.communication=USB
+dfu.protocol=
+dfu.program.protocol=
+dfu.program.tool=dfu-util
+dfu.program.tool.default=dfu-util
+dfu.program.extra_params=

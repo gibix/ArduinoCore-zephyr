@@ -365,18 +365,35 @@ tools.remoteocd_network.upload.pattern="{path}/{cmd}" upload -a "{upload.port.ad
 # PYOCD WRAPPER
 #
 
+# Per-board pyOCD session options, overridable in boards.txt
+pyocd.extra_flags=
+
 # TODO: at the moment, install pyocd manually (with provided script)
 #tools.pyocd.path={runtime.tools.pyocd.path}
 tools.pyocd.path=
 tools.pyocd.cmd=pyocd
-tools.pyocd.upload.params.verbose=
-tools.pyocd.upload.params.quiet=
-tools.pyocd.upload.pattern="{cmd}" load --target {upload.target} {upload.artifacts.sketch}@{upload.address}
+tools.pyocd.upload.params.verbose=-v
+tools.pyocd.upload.params.quiet=-q
+tools.pyocd.upload.pattern="{cmd}" load {upload.verbose} --target {upload.target} {pyocd.extra_flags} "{upload.artifacts.sketch}@{upload.address}"
 
-tools.pyocd.bootloader.params.verbose=
-tools.pyocd.bootloader.params.quiet=
-tools.pyocd.bootloader.pattern="{cmd}" load --target {bootloader.target} "{upload.artifacts.loader}"
+# "Upload using programmer": same as upload, but reached via programmers.txt.
+tools.pyocd.program.params.verbose=-v
+tools.pyocd.program.params.quiet=-q
+tools.pyocd.program.pattern="{cmd}" load {program.verbose} --target {upload.target} {pyocd.extra_flags} "{upload.artifacts.sketch}@{upload.address}"
+
+tools.pyocd.bootloader.params.verbose=-v
+tools.pyocd.bootloader.params.quiet=-q
+# bootloader.file is an ELF for most boards that use this recipe, so it carries
+# its own load addresses and needs no suffix. A board shipping a raw binary
+# instead - because what has to land in the slot is the MCUboot-headered image,
+# not the ELF - sets bootloader.load_at to "@{bootloader.address}".
+bootloader.load_at=
+tools.pyocd.bootloader.pattern="{cmd}" load {bootloader.verbose} --target {bootloader.target} {pyocd.extra_flags} "{upload.artifacts.loader}{bootloader.load_at}"
 tools.pyocd.burn.pattern="{tools.pyocd.cmd}" load --target {bootloader.target} "{bootloader.burn_image}"
+
+tools.pyocd.erase.params.verbose=-v
+tools.pyocd.erase.params.quiet=-q
+tools.pyocd.erase.pattern=
 
 
 #

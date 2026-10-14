@@ -17,11 +17,15 @@ manifest:
       url-base: https://github.com/facchinm
     - name: pillo79
       url-base: https://github.com/pillo79
+    - name: gibix
+      url-base: https://github.com/gibix
+    - name: dani-clo
+      url-base: https://github.com/dani-clo
 
   projects:
     - name: zephyr
       remote: arduino
-      revision: zephyr-arduino-v4.5.0
+      revision: nano-chandler
       import:
         name-allowlist:
           - cmsis
@@ -32,10 +36,10 @@ manifest:
           - tf-psa-crypto
           - segger
           - thrift
-          - mcuboot
           - nanopb
           - lvgl
           - fatfs
+          - zcbor
         path-allowlist:
           - modules/hal/*
 
@@ -47,4 +51,20 @@ manifest:
     - name: cannectivity
       path: modules/lib/cannectivity
       url: https://github.com/CANnectivity/cannectivity.git
-      revision: main
+      # Pinned to a known-good commit to avoid breakage from upstream `main`.
+      # This is the latest cannectivity commit as of the last successful CI
+      # build (run 29030899790, 2026-07-09), before the July USB device_next
+      # API changes broke the build. Update this SHA once a newer commit is
+      # verified against the Zephyr revision above.
+      revision: cf24edd66ab173d20f734e3f3350b1a1c053a904
+    - name: mcuboot
+      remote: gibix
+      revision: nano-chandler
+      path: bootloader/mcuboot
+
+    - name: hal_microchip
+      revision: master
+      url: https://github.com/Zephyr4Microchip/microchip-hal
+      path: modules/hal/microchip
+      groups:
+        - hal
