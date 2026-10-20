@@ -174,11 +174,13 @@ done
 cp ${IMAGE_DIR}/zephyr/zephyr.dts firmwares/zephyr-$variant.dts
 cp ${IMAGE_DIR}/zephyr/.config firmwares/zephyr-$variant.config
 
-# The MCUboot companion image, for burn-bootloader.
-rm -f firmwares/mcuboot-$variant.bin
-if [ -f ${BUILD_DIR}/mcuboot/zephyr/zephyr.bin ]; then
-    cp ${BUILD_DIR}/mcuboot/zephyr/zephyr.bin firmwares/mcuboot-$variant.bin
-fi
+# The MCUboot companion image: .bin for burn-bootloader, .elf for probes/debug.
+for ext in bin elf; do
+    rm -f firmwares/mcuboot-$variant.$ext
+    if [ -f ${BUILD_DIR}/mcuboot/zephyr/zephyr.$ext ]; then
+        cp ${BUILD_DIR}/mcuboot/zephyr/zephyr.$ext firmwares/mcuboot-$variant.$ext
+    fi
+done
 
 # Boards that squash the sketch into the loader image get a signed
 # loader-only image too, built with the same arguments the IDE uses.
