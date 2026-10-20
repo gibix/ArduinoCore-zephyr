@@ -22,7 +22,7 @@ manifest:
 
   projects:
     - name: zephyr
-      remote: arduino
+      remote: gibix
       revision: nano-xl-link-4.5
       import:
         name-allowlist:
