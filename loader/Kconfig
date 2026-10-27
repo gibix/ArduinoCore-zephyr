@@ -18,7 +18,7 @@ config MAIN_STACK_REGION
 	string "Main stack memory region"
 	depends on CODE_DATA_RELOCATION
 	help
-	  Specify the memory region for main stack.
+	  Specify the memory region for main stack
 
 config ARDUINO_NATIVE_SKETCH_BASE
 	hex "Sketch load address on native targets"
