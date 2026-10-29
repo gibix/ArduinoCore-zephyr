@@ -47,6 +47,17 @@ config LOADER_SKETCH_IN_MCUBOOT_IMAGE
 	  stores after the MCUboot header, instead of from a user_sketch
 	  partition.
 
+config LOADER_CONFIRM_DELAY_MS
+	int "Confirm a test image after this many milliseconds (0: never)"
+	depends on MCUBOOT_IMG_MANAGER
+	default 10000 if MCUBOOT_BOOTLOADER_MODE_SWAP_USING_OFFSET
+	default 0
+	help
+	  With MCUboot swap modes, an image installed as a test is reverted on
+	  the next reset unless confirmed. The confirm runs at the lowest
+	  priority, so a sketch that hogs the CPU is not confirmed. The sketch
+	  can confirm earlier with ota_confirm().
+
 config APP_WATCHDOG_ENFORCED
 	bool "Hardware watchdog enforced by sysbuild (MCUboot required)"
 	help
