@@ -15,6 +15,11 @@ if(SB_CONFIG_ENFORCE_SECURE_WATCHDOG)
 	set_config_int(${DEFAULT_IMAGE} CONFIG_APP_WATCHDOG_TIMEOUT_MS ${SB_CONFIG_SECURE_WATCHDOG_TIMEOUT_MS})
 endif()
 
+# The loader's OTA rejects unsigned images up front when MCUboot would.
+if(SB_CONFIG_BOOT_SIGNATURE_TYPE_ECDSA_P256)
+	set_config_bool(${DEFAULT_IMAGE} CONFIG_OTA_MCUBOOT_SIGNED y)
+endif()
+
 if(SB_CONFIG_ARDUINO_MCUBOOT_HOOKS)
 	set(mcuboot_EXTRA_ZEPHYR_MODULES ${ZEPHYR_MCUBOOT_MODULE_DIR}/boot/arduino/hooks
 	    CACHE INTERNAL "Arduino MCUboot hooks module")
