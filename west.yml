@@ -23,7 +23,7 @@ manifest:
   projects:
     - name: zephyr
       remote: gibix
-      revision: cee32b54c25d73c42fecc94342e9d8b3ca3159c4
+      revision: 24b030b3dcdb0b0c6299a7082d109609f78b5a08
       import:
         name-allowlist:
           - cmsis
@@ -52,7 +52,7 @@ manifest:
 
     - name: mcuboot
       remote: gibix
-      revision: ff9f423dd572f10497706e964999c1a6cb563f97
+      revision: 77ae7d954851fb0c1d614d22e4fb9d1cc8c9f312
       path: bootloader/mcuboot
 
     - name: hal_microchip
