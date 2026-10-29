@@ -40,8 +40,15 @@ USBD_DESC_PRODUCT_DEFINE(sample_product, CONFIG_USB_DEVICE_PRODUCT);
 USBD_DESC_SERIAL_NUMBER_DEFINE(sample_sn);
 /* doc string instantiation end */
 
-USBD_DESC_CONFIG_DEFINE(fs_cfg_desc, APP_VERSION_EXTENDED_STRING);
-USBD_DESC_CONFIG_DEFINE(hs_cfg_desc, APP_VERSION_EXTENDED_STRING);
+/* The upload recipes compare this string with the platform version to decide
+ * whether the loader must be flashed too (flash-loader-condition). */
+#ifdef CONFIG_USB_CONFIGURATION_STRING_DESC
+#define CFG_DESC_STRING CONFIG_USB_CONFIGURATION_STRING_DESC
+#else
+#define CFG_DESC_STRING APP_VERSION_EXTENDED_STRING
+#endif
+USBD_DESC_CONFIG_DEFINE(fs_cfg_desc, CFG_DESC_STRING);
+USBD_DESC_CONFIG_DEFINE(hs_cfg_desc, CFG_DESC_STRING);
 
 /* doc configuration instantiation start */
 static const uint8_t attributes = 0;

@@ -8,6 +8,10 @@ config PINCTRL
 	select PINCTRL_NON_STATIC
 
 config USB_CONFIGURATION_STRING_DESC
+	string "USB configuration string, compared with the platform version on upload"
+	# The sketch is part of the loader image: never match the platform
+	# version, so every upload sends loader and sketch.
+	default "$(APP_VERSION_EXTENDED_STRING)-ota" if LOADER_SKETCH_IN_MCUBOOT_IMAGE
 	default "$(APP_VERSION_EXTENDED_STRING)"
 
 source "Kconfig.zephyr"

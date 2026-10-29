@@ -822,9 +822,10 @@ nanoxllink.pyocd.extra_flags=-O pack.debug_sequences.enable=false -O connect_mod
 # wait_for_upload_port makes arduino-cli wait for that second port and hand it
 # to the recipe. A physical double-tap of reset does the same thing by hand.
 #
-# Alt 0 is slot1: the signed loader+sketch image is staged there and MCUboot
-# copies it over slot0 once the download completes. The loader always travels
-# with the sketch, so there is no separate loader update step.
+# Alt 0 is slot0: MCUboot writes the signed loader+sketch image straight into
+# it (a recovery, no swap). The loader's USB configuration string is its
+# version + "-ota", so flash-loader-condition always holds and the upload is
+# always the full image; there is no sketch-only upload.
 nanoxllink.upload.tool=dfu-util
 nanoxllink.upload.tool.default=dfu-util
 nanoxllink.upload.protocol=
@@ -839,7 +840,8 @@ nanoxllink.upload.use_1200bps_touch=true
 nanoxllink.upload.wait_for_upload_port=true
 nanoxllink.upload.native_usb=true
 nanoxllink.upload.artifacts.sketch={build.path}/{build.project_name}.signed.bin
-nanoxllink.tools.dfu-util.upload.pattern={tools.dfu-util.sketch.cmd}
+nanoxllink.flash-loader-and-sketch.1=if {flash-loader-condition} {tools.dfu-util.sketch.cmd}
+nanoxllink.flash-loader-and-sketch.2=run echo
 
 # burn-bootloader: MCUboot only, via DFU alt 1 (direct write to the BFM spare
 # slot, promoted on completion). Needs the board in DFU (double-tap) first.
