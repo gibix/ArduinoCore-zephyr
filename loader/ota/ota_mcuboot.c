@@ -21,6 +21,7 @@
 #include <zephyr/storage/flash_map.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/reboot.h>
+#include <zephyr/devicetree/fixed-partitions.h>
 
 #include <ota.h>
 
@@ -40,7 +41,8 @@ LOG_MODULE_REGISTER(ota_mcuboot, CONFIG_OTA_LOG_LEVEL);
 static struct flash_img_context img_ctx;
 /* Where the image starts in slot1: one sector in with swap-using-offset. */
 static off_t img_start;
-static size_t expected;
+static size_t expected; /* 0: not announced */
+static size_t limit;
 static size_t received;
 static bool writing;
 static bool staged;
@@ -63,6 +65,7 @@ static int erase_trailer(const struct flash_area *fa) {
 
 int ota_write_begin(enum ota_type type, size_t size) {
 	const struct flash_area *fa;
+	size_t max_size;
 	int rc;
 
 	ARG_UNUSED(type);
@@ -75,10 +78,10 @@ int ota_write_begin(enum ota_type type, size_t size) {
 	}
 
 	img_start = boot_get_image_start_offset(SLOT1_ID);
-
 	/* The image must end before the trailer MCUboot keeps at the slot's end. */
-	if (size < IMAGE_HEADER_SIZE ||
-	    img_start + size > (size_t)boot_get_trailer_status_offset(fa->fa_size)) {
+	max_size = boot_get_trailer_status_offset(fa->fa_size) - img_start;
+
+	if ((size != 0 && size < IMAGE_HEADER_SIZE) || size > max_size) {
 		LOG_ERR("image of %u bytes does not fit slot1", (unsigned)size);
 		flash_area_close(fa);
 		return -EFBIG;
@@ -97,6 +100,7 @@ int ota_write_begin(enum ota_type type, size_t size) {
 	}
 
 	expected = size;
+	limit = max_size;
 	received = 0;
 	writing = true;
 	return 0;
@@ -109,8 +113,8 @@ int ota_write(const void *buf, size_t len) {
 		return -EBADF;
 	}
 
-	if (received + len > expected) {
-		LOG_ERR("more data than announced (%u bytes)", (unsigned)expected);
+	if (received + len > (expected ? expected : limit)) {
+		LOG_ERR("more data than fits (%u bytes)", (unsigned)(expected ? expected : limit));
 		writing = false;
 		return -EFBIG;
 	}
@@ -142,10 +146,11 @@ int ota_write_end(void) {
 	}
 
 	written = flash_img_bytes_written(&img_ctx);
-	if (written != expected) {
+	if (expected != 0 && written != expected) {
 		LOG_ERR("wrote %u bytes, expected %u", (unsigned)written, (unsigned)expected);
 		return -EIO;
 	}
+	expected = written;
 
 	staged = true;
 	return 0;
@@ -293,4 +298,38 @@ int ota_confirm(void) {
 	}
 
 	return boot_write_img_confirmed();
+}
+
+int ota_running_image(const void **start, size_t *len) {
+	const struct flash_area *fa;
+	uint8_t hdr[16];
+	uint16_t magic, tlv_len;
+	off_t off;
+	int rc;
+
+	rc = flash_area_open(PARTITION_ID(slot0_partition), &fa);
+	if (rc) {
+		return rc;
+	}
+
+	rc = flash_area_read(fa, 0, hdr, sizeof(hdr));
+	if (rc == 0 && sys_get_le32(&hdr[0]) != IMAGE_MAGIC) {
+		rc = -EINVAL;
+	}
+	if (rc == 0) {
+		/* header + body + protected TLVs, then the TLV area */
+		off = sys_get_le16(&hdr[8]) + sys_get_le32(&hdr[12]) + sys_get_le16(&hdr[10]);
+		rc = read_u16_pair(fa, off, &magic, &tlv_len);
+		if (rc == 0 && magic != IMAGE_TLV_INFO_MAGIC) {
+			rc = -EINVAL;
+		}
+	}
+	flash_area_close(fa);
+	if (rc) {
+		return rc;
+	}
+
+	*start = (const void *)DT_PARTITION_ADDR(DT_NODELABEL(slot0_partition));
+	*len = off + tlv_len;
+	return 0;
 }

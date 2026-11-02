@@ -62,6 +62,40 @@ config LOADER_CONFIRM_DELAY_MS
 	  priority, so a sketch that hogs the CPU is not confirmed. The sketch
 	  can confirm earlier with ota_confirm().
 
+config LOADER_SSHD_PASSWORD
+	string "SSH password (any user name)"
+	depends on SSH_SERVER
+	help
+	  With the SSH server enabled the loader serves its shell over SSH on
+	  every interface, and the USB serial port stays with the sketch.
+
+config LOADER_SSHD_HOST_KEY
+	string "RSA host key, base64 of its DER encoding"
+	depends on SSH_SERVER
+	help
+	  Made with "openssl genrsa 2048 | openssl rsa -outform DER | base64 -w0";
+	  generating one on the board takes minutes.
+
+config LOADER_WIREGUARD_ADDRESS
+	string "This end of the tunnel with prefix, e.g. 10.99.0.2/24"
+	depends on WIREGUARD
+	help
+	  With WireGuard enabled the loader brings up a tunnel to one peer,
+	  the first host of this network (e.g. 10.99.0.1), keepalive 25 s.
+
+config LOADER_WIREGUARD_PRIVATE_KEY
+	string "Private key of this end, base64"
+	depends on WIREGUARD
+
+config LOADER_WIREGUARD_PEER_PUBLIC_KEY
+	string "Public key of the peer, base64"
+	depends on WIREGUARD
+
+config LOADER_WIREGUARD_PEER_ENDPOINT
+	string "UDP endpoint of the peer, address:port"
+	depends on WIREGUARD
+
+
 config APP_WATCHDOG_ENFORCED
 	bool "Hardware watchdog enforced by sysbuild (MCUboot required)"
 	help

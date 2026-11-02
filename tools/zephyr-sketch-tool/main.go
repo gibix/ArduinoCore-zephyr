@@ -87,7 +87,11 @@ func main() {
 
 	if *ota {
 		// Note: runOTA is assumed to be defined elsewhere in the package.
-		if err := runOTA(*otaLoader, *otaSketch, *otaOffset, *otaMagic, *otaSketch); err != nil {
+		base := *output
+		if base == "" {
+			base = *otaSketch
+		}
+		if err := runOTA(*otaLoader, *otaSketch, *otaOffset, *otaMagic, base); err != nil {
 			fmt.Printf("OTA error: %v\n", err)
 			os.Exit(1)
 		}

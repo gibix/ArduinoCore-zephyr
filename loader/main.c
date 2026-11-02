@@ -116,7 +116,7 @@ int loader_usb_enable(void) {
 	return 0;
 }
 
-#if CONFIG_SHELL
+#if CONFIG_SHELL && !CONFIG_SSH_SERVER
 static int enable_shell_usb(void) {
 	bool log_backend = CONFIG_SHELL_BACKEND_SERIAL_LOG_LEVEL > 0;
 	uint32_t level = (CONFIG_SHELL_BACKEND_SERIAL_LOG_LEVEL > LOG_LEVEL_DBG) ?
@@ -253,7 +253,9 @@ static int loader(const struct shell *sh) {
 
 #if ZARD_FIRST_SERIAL_IS_SERIALUSB
 	int debug = (!sketch_valid) || (sketch_hdr->flags & SKETCH_FLAG_DEBUG);
-#if CONFIG_SHELL
+	// With an SSH server the shell is reached over SSH (sshd.c) and the USB
+	// serial port stays with the sketch.
+#if CONFIG_SHELL && !CONFIG_SSH_SERVER
 	// Compare the thread object, not its name: k_thread_name_get() returns
 	// NULL when CONFIG_THREAD_NAME is disabled, making the strcmp() undefined
 	// behaviour and silently skipping USB setup on any board that does not

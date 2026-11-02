@@ -18,3 +18,8 @@ endif()
 
 target_sources_ifdef(CONFIG_OTA_BACKEND_MCUBOOT app PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/ota_mcuboot.c)
+
+# "ota" shell command: whenever there is a shell and TCP to download with
+if(CONFIG_SHELL AND CONFIG_NET_TCP)
+    target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/ota_shell.c)
+endif()

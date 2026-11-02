@@ -18,3 +18,4 @@ EXPORT_SYMBOL(ota_loader_ready);
 EXPORT_SYMBOL(ota_loader_start);
 
 EXPORT_SYMBOL(ota_confirm);
+EXPORT_SYMBOL(ota_running_image);

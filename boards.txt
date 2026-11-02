@@ -840,6 +840,10 @@ nanoxllink.upload.use_1200bps_touch=true
 nanoxllink.upload.wait_for_upload_port=true
 nanoxllink.upload.native_usb=true
 nanoxllink.upload.artifacts.sketch={build.path}/{build.project_name}.signed.bin
+# OTA (ota.h, Arduino Cloud): the signed loader+sketch image, installed by MCUboot
+nanoxllink.build.ota.magic=0x2341007E
+nanoxllink.build.ota.loader=
+nanoxllink.build.ota.payload={build.path}/{build.project_name}.signed.bin
 nanoxllink.flash-loader-and-sketch.1=if {flash-loader-condition} {tools.dfu-util.sketch.cmd}
 nanoxllink.flash-loader-and-sketch.2=run echo
 

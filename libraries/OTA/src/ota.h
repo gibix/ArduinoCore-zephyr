@@ -22,7 +22,8 @@ enum ota_type {
 };
 
 /*
- * Start staging an update of `size` bytes. Discards any update staged before.
+ * Start staging an update of `size` bytes, or 0 if the size is not known yet
+ * (e.g. a compressed download). Discards any update staged before.
  * Follow with ota_write() for the whole payload and ota_write_end(), then
  * ota_sketch_ready() or ota_loader_ready() matching `type`.
  */
@@ -34,8 +35,8 @@ int ota_write_begin(enum ota_type type, size_t size);
 int ota_write(const void *buf, size_t len);
 
 /*
- * Finish staging. Fails if fewer or more bytes than announced to
- * ota_write_begin() were written.
+ * Finish staging. Fails if a size was announced to ota_write_begin() and a
+ * different number of bytes was written.
  */
 int ota_write_end(void);
 
@@ -73,6 +74,13 @@ int ota_loader_start(void);
  * nothing where updates are not tested.
  */
 int ota_confirm(void);
+
+/*
+ * Where the running image is in memory, e.g. to hash it: on MCUboot boards
+ * the whole loader + sketch image in slot0. Returns -ENOTSUP where updates
+ * are files.
+ */
+int ota_running_image(const void **start, size_t *len);
 
 #ifdef __cplusplus
 }

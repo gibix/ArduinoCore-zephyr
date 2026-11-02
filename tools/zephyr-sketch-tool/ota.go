@@ -37,13 +37,23 @@ func runOTA(loaderPath, sketchPath, offsetStr, magicStr, outputBase string) erro
 	if magicStr == "" {
 		return nil
 	}
-	if loaderPath == "" || sketchPath == "" || offsetStr == "" {
-		return fmt.Errorf("ota: -ota-loader, -ota-sketch and -ota-offset are all required when -ota-magic is set")
+	if sketchPath == "" {
+		return fmt.Errorf("ota: -ota-sketch is required when -ota-magic is set")
 	}
 
 	magic, err := parseHex(magicStr)
 	if err != nil {
 		return fmt.Errorf("parse magic: %w", err)
+	}
+
+	// Without a loader the payload is installed as is, e.g. the signed
+	// loader+sketch image of an MCUboot board: only .ota and .lzss.ota.
+	if loaderPath == "" {
+		return writeOTA(uint32(magic), sketchPath, outputBase)
+	}
+
+	if offsetStr == "" {
+		return fmt.Errorf("ota: -ota-offset is required with -ota-loader")
 	}
 
 	offset, err := parseHex(offsetStr)
@@ -100,6 +110,27 @@ func runOTA(loaderPath, sketchPath, offsetStr, magicStr, outputBase string) erro
 			return fmt.Errorf("write %s: %w", path, err)
 		}
 		fmt.Printf("OTA: %s (%d bytes, %s)\n", path, len(out), v.label)
+	}
+	return nil
+}
+
+// writeOTA packs a single payload file into <base>.ota and <base>.lzss.ota.
+func writeOTA(magic uint32, payloadPath, outputBase string) error {
+	payload, err := os.ReadFile(payloadPath)
+	if err != nil {
+		return fmt.Errorf("read payload: %w", err)
+	}
+
+	base := strings.TrimSuffix(outputBase, ".ota")
+	for _, v := range []struct {
+		suffix   string
+		compress bool
+	}{{".ota", false}, {".lzss.ota", true}} {
+		out := buildOTA(magic, payload, v.compress)
+		if err := os.WriteFile(base+v.suffix, out, 0644); err != nil {
+			return fmt.Errorf("write %s: %w", base+v.suffix, err)
+		}
+		fmt.Printf("OTA: %s (%d bytes)\n", base+v.suffix, len(out))
 	}
 	return nil
 }

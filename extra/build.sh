@@ -23,12 +23,13 @@ fi
 if [ $# -eq 0 ] || [ x$1 == x"-h" ] || [ x$1 == x"--help" ]; then
 	cat << EOF
 Usage:
-	$0 <arduino_board>
+	$0 <arduino_board> [--debug] [--conf <file>]...
 	$0 <zephyr_board> [<west_args>]
 Build the loader for the given target.
 
 When given an <arduino_board> defined in 'boards.txt' (e.g. 'giga'), the actual
-Zephyr board target and arguments are taken from that definition.
+Zephyr board target and arguments are taken from that definition. --debug adds
+extra/debug.conf, --conf adds any other Kconfig fragment.
 
 When given a <zephyr_board>, it is passed as the '-b' argument to 'west build'.
 Additional <west_args> are passed as-is at the end of the command line.
@@ -55,15 +56,26 @@ if ! [ -z "$chosen_board" ]; then
 	mapfile -t args < <(jq -cr '.args' <<< "$chosen_board" | grep -oP "$arg_token")
 	upload_offset=$(jq -cr '.upload_offset' <<< "$chosen_board")
 
-	# Check for debug flag and append
-	if [ x$2 == x"--debug" ]; then
+	# Extra Kconfig fragments: --debug and --conf <file>
+	extra_confs=()
+	shift
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--debug) extra_confs+=(../extra/debug.conf) ;;
+			--conf) extra_confs+=("$(realpath "$2")"); shift ;;
+			*) log_msg error "Unknown option '$1'"; exit 1 ;;
+		esac
+		shift
+	done
+	if [ ${#extra_confs[@]} -gt 0 ]; then
+		extra_conf=$(IFS=';'; echo "${extra_confs[*]}")
 		# Merge into an existing -DEXTRA_CONF_FILE coming from boards.txt
 		# instead of adding a second one: CMake would keep only the last.
 		debug_conf_merged=0
 		for i in "${!args[@]}"; do
 			case "${args[$i]}" in
 				-DEXTRA_CONF_FILE=*)
-					args[$i]="${args[$i]};../extra/debug.conf"
+					args[$i]="${args[$i]};${extra_conf}"
 					debug_conf_merged=1
 					;;
 			esac
@@ -76,7 +88,7 @@ if ! [ -z "$chosen_board" ]; then
 				[ x"$a" == x"--" ] && has_sep=1
 			done
 			[ $has_sep -eq 0 ] && args+=(--)
-			args+=(-DEXTRA_CONF_FILE=../extra/debug.conf)
+			args+=(-DEXTRA_CONF_FILE="${extra_conf}")
 		fi
 	fi
 else

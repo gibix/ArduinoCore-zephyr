@@ -61,6 +61,12 @@ int ota_write(const void *buf, size_t len) {
 	return 0;
 }
 
+int ota_running_image(const void **start, size_t *len) {
+	ARG_UNUSED(start);
+	ARG_UNUSED(len);
+	return -ENOTSUP;
+}
+
 int ota_confirm(void) {
 	/* File updates are installed for good, there is nothing to confirm. */
 	return 0;
@@ -79,7 +85,7 @@ int ota_write_end(void) {
 		return rc;
 	}
 
-	if (written != expected) {
+	if (expected != 0 && written != expected) {
 		LOG_ERR("wrote %u bytes, expected %u", (unsigned)written, (unsigned)expected);
 		return -EIO;
 	}
