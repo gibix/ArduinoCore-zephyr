@@ -103,16 +103,29 @@ fi
 BUILD_DIR=build/${variant}
 VARIANT_DIR=variants/${variant}
 rm -rf ${BUILD_DIR}
-west build -d ${BUILD_DIR} -b ${target} loader -t llext-edk "${args[@]}"
+
+# A variant shipping a sysbuild.conf is built through sysbuild, which lets
+# per-image sysbuild.cmake files add further images alongside the loader.
+# Under sysbuild the loader's own build tree is ${BUILD_DIR}/loader and the
+# llext-edk target is not part of 'all', so it is built separately.
+if [ -f ${VARIANT_DIR}/sysbuild.conf ]; then
+	IMAGE_DIR=${BUILD_DIR}/loader
+	SB_CONF_FILE=$(realpath ${VARIANT_DIR}/sysbuild.conf) \
+		west build -d ${BUILD_DIR} -b ${target} --sysbuild loader "${args[@]}"
+	cmake --build ${IMAGE_DIR} --target llext-edk
+else
+	IMAGE_DIR=${BUILD_DIR}
+	west build -d ${BUILD_DIR} -b ${target} loader -t llext-edk "${args[@]}" "${debug_args[@]}"
+fi
 
 # Extract the generated EDK tarball and copy it to the variant directory
 mkdir -p ${VARIANT_DIR} firmwares
-(set -e ; cd ${BUILD_DIR} && rm -rf llext-edk && tar xf zephyr/llext-edk.tar.Z)
-rsync -a --delete ${BUILD_DIR}/llext-edk ${VARIANT_DIR}/
+(set -e ; cd ${IMAGE_DIR} && rm -rf llext-edk && tar xf zephyr/llext-edk.tar.Z)
+rsync -a --delete ${IMAGE_DIR}/llext-edk ${VARIANT_DIR}/
 if [[ $variant == native_sim* ]] ; then
 	# no toolchain picolibc for the host gcc: static sketches link the one
 	# built for the loader, as ARM sketches link the toolchain one
-	cp ${BUILD_DIR}/modules/picolibc/libc.a ${VARIANT_DIR}/libc.a
+	cp ${IMAGE_DIR}/modules/picolibc/libc.a ${VARIANT_DIR}/libc.a
 	# no picolibc-based libstdc++ for the host gcc either: use the one from
 	# the Zephyr SDK toolchain for the host architecture (also installed by
 	# bootstrap.sh)
@@ -151,20 +164,20 @@ perl -0pi -e "s/__syscall ($edk_funcs);/$edk_qual \$1;/g" $api_hdrs
 
 for ext in elf bin hex uf2 exe; do
     rm -f firmwares/zephyr-$variant.$ext
-    if [ -f ${BUILD_DIR}/zephyr/zephyr.$ext ]; then
-        cp ${BUILD_DIR}/zephyr/zephyr.$ext firmwares/zephyr-$variant.$ext
+    if [ -f ${IMAGE_DIR}/zephyr/zephyr.$ext ]; then
+        cp ${IMAGE_DIR}/zephyr/zephyr.$ext firmwares/zephyr-$variant.$ext
     fi
 done
-cp ${BUILD_DIR}/zephyr/zephyr.dts firmwares/zephyr-$variant.dts
-cp ${BUILD_DIR}/zephyr/.config firmwares/zephyr-$variant.config
+cp ${IMAGE_DIR}/zephyr/zephyr.dts firmwares/zephyr-$variant.dts
+cp ${IMAGE_DIR}/zephyr/.config firmwares/zephyr-$variant.config
 
 # Generate the provides.ld file for linked builds
 echo "Generating exported symbol scripts"
-LOADER_ELF="${BUILD_DIR}/zephyr/zephyr.elf"
-if [ -f "${BUILD_DIR}/zephyr/zephyr.exe" ] ; then
+LOADER_ELF="${IMAGE_DIR}/zephyr/zephyr.elf"
+if [ -f "${IMAGE_DIR}/zephyr/zephyr.exe" ] ; then
 	# native_sim: zephyr.elf is a partially linked object, final addresses
 	# are only known in the host executable
-	LOADER_ELF="${BUILD_DIR}/zephyr/zephyr.exe"
+	LOADER_ELF="${IMAGE_DIR}/zephyr/zephyr.exe"
 fi
 extra/gen_provides.py "${LOADER_ELF}" -T > ${VARIANT_DIR}/tls-syms.S
 extra/gen_provides.py "${LOADER_ELF}" -L > ${VARIANT_DIR}/syms-dynamic.ld
