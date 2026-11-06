@@ -303,6 +303,13 @@ if [ ! -z "$board" ]; then
 		LOADER_SIZE=$(stat -c%s firmwares/zephyr-$variant.bin)
 		LOADER_SIZE=$(( (LOADER_SIZE + ERASE_DIM - 1) / ERASE_DIM * ERASE_DIM ))
 		CODE_SIZE=$(( CODE_SIZE - LOADER_SIZE - TLV_MAX - ERASE_DIM ))
+		# Swap-using-offset: the update sits one sector into slot1, and the
+		# swap trailer is larger than the overwrite-only one.
+		CONFIG=firmwares/zephyr-${variant}.config
+		if grep -q '^CONFIG_MCUBOOT_BOOTLOADER_MODE_SWAP_USING_OFFSET=y' $CONFIG; then
+			FOOTER=$(get_value_from_text_file $CONFIG 'CONFIG_MCUBOOT_UPDATE_FOOTER_SIZE')
+			CODE_SIZE=$(( CODE_SIZE - ${FOOTER:-0} ))
+		fi
 	fi
 	update_local_field "upload.maximum_size" $CODE_SIZE
 
