@@ -761,15 +761,16 @@ nanoxllink.build.board=NANO_XL_LINK
 
 # Loader and sketch squashed into one ECDSA-P256 signed MCUboot image;
 # build.certificate comes from boards.local.txt (extra/build.sh).
-nanoxllink.build.zsk_args.squash=--squash --loader_bin "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" --pem_file "{build.certificate}" --erase_flash_dim 4096 --image_version 1.0.0.0
+nanoxllink.build.zsk_args.squash=--squash --loader_bin "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" --pem_file "{build.certificate}" --erase_flash_dim 4096 --dfu_offset 4096 --image_version 1.0.0.0
 
 nanoxllink.vid.0=0x2341
 nanoxllink.pid.0=0x007e
 nanoxllink.upload_port.0.vid=0x2341
 nanoxllink.upload_port.0.pid=0x007e
 
-# 1200-bps touch (or double tap) -> MCUboot USB DFU; alt 0 is slot1, which
-# MCUboot copies over slot0.
+# 1200-bps touch (or double tap) -> MCUboot USB DFU into slot1, then MCUboot
+# overwrites slot0 (no swap). The .dfu image starts one erased sector early
+# because swap-using-offset expects the update one sector into slot1.
 nanoxllink.upload.tool=dfu-util
 nanoxllink.upload.tool.default=dfu-util
 nanoxllink.upload.protocol=
@@ -782,7 +783,7 @@ nanoxllink.leave.dfuse=
 nanoxllink.upload.use_1200bps_touch=true
 nanoxllink.upload.wait_for_upload_port=true
 nanoxllink.upload.native_usb=true
-nanoxllink.upload.artifacts.sketch={build.path}/{build.project_name}.signed.{upload.extension}
+nanoxllink.upload.artifacts.sketch={build.path}/{build.project_name}.signed.dfu.{upload.extension}
 nanoxllink.tools.dfu-util.upload.pattern={tools.dfu-util.sketch.cmd}
 
 # No burn-bootloader: MCUboot is updated over SWD only.
@@ -804,7 +805,7 @@ nanoxllink_connector.build.variant=arduino_nano_xl_link_pic32ck2051sg01144_conne
 nanoxllink_connector.build.extra_flags=
 nanoxllink_connector.build.board=NANO_XL_LINK_CONNECTOR
 
-nanoxllink_connector.build.zsk_args.squash=--squash --loader_bin "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" --pem_file "{build.certificate}" --erase_flash_dim 4096 --image_version 1.0.0.0
+nanoxllink_connector.build.zsk_args.squash=--squash --loader_bin "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" --pem_file "{build.certificate}" --erase_flash_dim 4096 --dfu_offset 4096 --image_version 1.0.0.0
 
 nanoxllink_connector.vid.0=0x2341
 nanoxllink_connector.pid.0=0x008e
@@ -823,5 +824,5 @@ nanoxllink_connector.leave.dfuse=
 nanoxllink_connector.upload.use_1200bps_touch=true
 nanoxllink_connector.upload.wait_for_upload_port=true
 nanoxllink_connector.upload.native_usb=true
-nanoxllink_connector.upload.artifacts.sketch={build.path}/{build.project_name}.signed.{upload.extension}
+nanoxllink_connector.upload.artifacts.sketch={build.path}/{build.project_name}.signed.dfu.{upload.extension}
 nanoxllink_connector.tools.dfu-util.upload.pattern={tools.dfu-util.sketch.cmd}

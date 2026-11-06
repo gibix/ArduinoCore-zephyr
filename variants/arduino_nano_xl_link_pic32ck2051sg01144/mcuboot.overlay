@@ -14,6 +14,10 @@
 
 #include "retained_mem.dtsi"
 
+&wdt {
+	status = "okay";
+};
+
 /*
  * DFU fade LED: LED_BUILTIN (PB16) on TCC6 WO0. The other TCCs stay off so
  * MCUboot never muxes Arduino pins (D2/D7 strap the ESP8266).

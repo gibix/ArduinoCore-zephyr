@@ -223,6 +223,10 @@
 	pinctrl-names = "default", "sleep", "arduino";
 };
 
+&wdt {
+	status = "okay";
+};
+
 &trng {
 	status = "okay";
 };
