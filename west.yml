@@ -19,6 +19,8 @@ manifest:
       url-base: https://github.com/pillo79
     - name: gibix
       url-base: https://github.com/gibix
+    - name: mcu-tools
+      url-base: https://github.com/mcu-tools
 
   projects:
     - name: zephyr
@@ -52,8 +54,8 @@ manifest:
       revision: main
 
     - name: mcuboot
-      remote: gibix
-      revision: nano-chandler
+      remote: mcu-tools
+      revision: dc464852334e25c559fe4f4bc4c0b045c1da43b1
       path: bootloader/mcuboot
 
     - name: hal_microchip
