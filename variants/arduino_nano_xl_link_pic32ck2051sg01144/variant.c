@@ -7,9 +7,14 @@
 #include <zephyr/retention/bootmode.h>
 #include <zephyr/sys/reboot.h>
 
-/* Ask MCUboot for USB DFU. Plain C: the loader builds variant.c too. */
+/* Ask for USB DFU: the loader's own (CONFIG_LOADER_DFU_MODE) or MCUboot's.
+ * Plain C: the loader builds variant.c too. */
 void nano_xl_link_request_dfu(void) {
+#ifdef CONFIG_LOADER_DFU_MODE
+	(void)bootmode_set(CONFIG_LOADER_DFU_BOOT_MODE);
+#else
 	(void)bootmode_set(BOOT_MODE_TYPE_BOOTLOADER);
+#endif
 	sys_reboot(SYS_REBOOT_WARM);
 }
 

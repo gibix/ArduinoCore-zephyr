@@ -38,7 +38,8 @@ static bool dfu_requested(void)
 
 	if (requested < 0) {
 		requested = bootmode_check(BOOT_MODE_TYPE_BOOTLOADER) == 1;
-		if (bootmode_clear() != 0) {
+		/* Other values (the loader's own DFU mode) are for the image. */
+		if (requested && bootmode_clear() != 0) {
 			BOOT_LOG_ERR("Unable to clear boot mode");
 		}
 	}
