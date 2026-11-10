@@ -783,9 +783,10 @@ nanoxllink.upload.tool.serial=dfu-util
 nanoxllink.upload.tool.dfu=dfu-util-port
 nanoxllink.upload.protocol=
 nanoxllink.upload.transport=
-nanoxllink.upload.use_1200bps_touch=true
-# The DFU devices have no serial port: arduino-cli's wait would always time out
-# (10 s); dfu-util -w waits for the loader DFU device instead.
+# No touch: dfu-util sends DFU DETACH on the serial port's run-time interface
+# and waits for the loader DFU. The DFU devices have no serial port, so
+# arduino-cli's wait for one would always time out (10 s).
+nanoxllink.upload.use_1200bps_touch=false
 nanoxllink.upload.wait_for_upload_port=false
 nanoxllink.upload.native_usb=true
 nanoxllink.upload.artifacts.sketch={build.path}/{build.project_name}.signed.dfu.{upload.extension}
@@ -836,9 +837,10 @@ nanoxllink_connector.upload.tool.serial=dfu-util
 nanoxllink_connector.upload.tool.dfu=dfu-util-port
 nanoxllink_connector.upload.protocol=
 nanoxllink_connector.upload.transport=
-nanoxllink_connector.upload.use_1200bps_touch=true
-# The DFU devices have no serial port: arduino-cli's wait would always time out
-# (10 s); dfu-util -w waits for the loader DFU device instead.
+# No touch: dfu-util sends DFU DETACH on the serial port's run-time interface
+# and waits for the loader DFU. The DFU devices have no serial port, so
+# arduino-cli's wait for one would always time out (10 s).
+nanoxllink_connector.upload.use_1200bps_touch=false
 nanoxllink_connector.upload.wait_for_upload_port=false
 nanoxllink_connector.upload.native_usb=true
 nanoxllink_connector.upload.artifacts.sketch={build.path}/{build.project_name}.signed.dfu.{upload.extension}
