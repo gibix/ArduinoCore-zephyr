@@ -767,12 +767,13 @@ nanoxllink.vid.0=0x2341
 nanoxllink.pid.0=0x007e
 nanoxllink.upload_port.0.vid=0x2341
 nanoxllink.upload_port.0.pid=0x007e
-# MCUboot USB DFU (double tap, no valid image) and loader USB DFU (1200-bps
-# touch), listed by dfu-discovery; the dfu-util recipes use these PIDs.
+# MCUboot USB DFU (double tap, no valid image) and loader USB DFU (DFU DETACH or
+# 1200-bps touch; same PID as the sketch, told apart by the DFU interface),
+# listed by dfu-discovery; the dfu-util recipes use these PIDs.
 nanoxllink.upload_port.1.vid=0x2341
 nanoxllink.upload_port.1.pid=0x017e
 nanoxllink.upload_port.2.vid=0x2341
-nanoxllink.upload_port.2.pid=0x017e
+nanoxllink.upload_port.2.pid=0x007e
 
 # Both DFUs write slot1, then MCUboot overwrites slot0 (no swap). The .dfu image
 # starts one erased sector early because swap-using-offset expects the update
@@ -826,7 +827,7 @@ nanoxllink_connector.upload_port.0.pid=0x008e
 nanoxllink_connector.upload_port.1.vid=0x2341
 nanoxllink_connector.upload_port.1.pid=0x017e
 nanoxllink_connector.upload_port.2.vid=0x2341
-nanoxllink_connector.upload_port.2.pid=0x017f
+nanoxllink_connector.upload_port.2.pid=0x008e
 
 # Both DFUs write slot1, then MCUboot overwrites slot0 (no swap). The .dfu image
 # starts one erased sector early because swap-using-offset expects the update
