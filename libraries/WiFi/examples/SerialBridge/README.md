@@ -11,7 +11,7 @@ Supported boards:
 | Board | Coprocessor | Firmware |
 |---|---|---|
 | Portenta C33 | ESP32-C3 | [ESP32-C3 (Portenta C33)](#portenta-c33-esp32-c3) |
-| Nano XL Link Connector | ESP8266 (ESP-AT) | [ESP8266 (Nano XL Link Connector)](#nano-xl-link-connector-esp8266) |
+| Nano XL Link (Connector carrier) | ESP8266 (ESP-AT) | [ESP8266 (Nano XL Link Connector)](#nano-xl-link-connector-esp8266) |
 
 On boards without the required device-tree properties, the sketch builds as a
 no-op and does not provide a flashing bridge.
@@ -83,10 +83,11 @@ espflash write-bin 0x0 ./ESP32-C3/portenta_c33-v0.0.5.bin
 
 ## Nano XL Link Connector (ESP8266)
 
-The Connector carrier's ESP8266 module runs Espressif's ESP-AT firmware. The
-WiFi library requires **AT 1.7 or later**: with an older firmware (modules have
-shipped with AT 1.3.0.0) `WiFi.status()` and `WiFi.begin()` report
-`WL_NO_SHIELD`. The module has 1 MB of flash; the image that fits it is
+The Connector carrier's ESP8266 module runs Espressif's ESP-AT firmware on
+sercom1 (`Serial2` while WiFi is unused), with its reset line on D7. The WiFi
+library requires **AT 1.7 or later**: with an older firmware (modules have
+shipped with AT 1.3.0.0), or without a module, `WiFi.status()` and
+`WiFi.begin()` report `WL_NO_SHIELD`. The module has 1 MB of flash; the image that fits it is
 **AT 1.7.5**, the prebuilt "512+512" AT binary of the
 [ESP8266 NONOS SDK v3.0.5](https://github.com/espressif/ESP8266_NONOS_SDK/tree/v3.0.5/bin).
 Newer ESP-AT 2.x packages need 2 MB and do not fit.

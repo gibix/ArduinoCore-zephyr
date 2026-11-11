@@ -10,12 +10,7 @@
 #define LEDG (40u)
 #define LEDB (41u)
 
-/* The Connector drops sercom1 (ESP8266) from "serials", so RS485 moves down. */
-#ifdef ARDUINO_NANO_XL_LINK_CONNECTOR
-#define RS485_SERIAL_PORT Serial2
-#else
 #define RS485_SERIAL_PORT Serial3
-#endif
 
 /* RS485.h derives RS485_DEFAULT_*_PIN from these. */
 #define CUSTOM_RS485_DEFAULT_DE_PIN (42u)

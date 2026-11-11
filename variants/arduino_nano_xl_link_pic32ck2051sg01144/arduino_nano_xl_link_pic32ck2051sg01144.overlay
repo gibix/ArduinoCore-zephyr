@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/pwm/pwm.h>
 #include "arduino_nano_xl_link_pic32ck2051sg01144-common.overlay"
 
@@ -25,8 +26,18 @@
 	pinctrl-names = "default", "sleep", "arduino";
 };
 
+/*
+ * ESP8266 AT module on the Connector carrier: sercom1 with D7 as its reset
+ * line. The module may not be fitted: the driver neither opens the UART nor
+ * drives D7 until the WiFi library brings its interface up
+ * (CONFIG_WIFI_ESP_AT_NET_IF_NO_AUTO_START), so sercom1 is Serial2 and D7 a
+ * plain pin otherwise.
+ */
 &sercom1 {
-	zephyr,deferred-init;
+	esp8266: esp8266 {
+		compatible = "espressif,esp-at";
+		reset-gpios = <&portd 11 GPIO_ACTIVE_LOW>;
+	};
 };
 
 / {
@@ -41,6 +52,15 @@
 	};
 
 	zephyr,user {
+		/*
+		 * ESP8266 firmware update through the WiFi SerialBridge example: USB
+		 * DTR drives GPIO0 (D2) and RTS drives reset (D7), as on the usual
+		 * esptool auto-reset circuit.
+		 */
+		coprocessor-serial = <&sercom1>;
+		coprocessor-boot-gpios = <&portc 19 GPIO_ACTIVE_LOW>;
+		coprocessor-reset-gpios = <&portd 11 GPIO_ACTIVE_LOW>;
+
 		serials = <&sercom6>, <&sercom1>, <&sercom0>;
 
 		pwm-pin-gpios = <&portc 19 0>,
