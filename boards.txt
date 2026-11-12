@@ -760,8 +760,10 @@ nanoxllink.build.extra_flags=
 nanoxllink.build.board=NANO_XL_LINK
 
 # Loader and sketch squashed into one ECDSA-P256 signed MCUboot image;
-# build.certificate comes from boards.local.txt (extra/build.sh).
-nanoxllink.build.zsk_args.squash=--squash --loader_bin "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" --pem_file "{build.certificate}" --erase_flash_dim 4096 --dfu_offset 4096 --image_version 1.0.0.0
+# build.certificate and build.image_version (the core version from
+# loader/VERSION) come from boards.local.txt (extra/build.sh).
+nanoxllink.build.image_version=0.0.0.0
+nanoxllink.build.zsk_args.squash=--squash --loader_bin "{runtime.platform.path}/firmwares/zephyr-{build.variant}.bin" --pem_file "{build.certificate}" --erase_flash_dim 4096 --dfu_offset 4096 --image_version {build.image_version}
 
 nanoxllink.vid.0=0x2341
 nanoxllink.pid.0=0x007e
