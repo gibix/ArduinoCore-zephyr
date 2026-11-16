@@ -85,7 +85,7 @@ if ! [ -z "$chosen_board" ]; then
 
 	# Check for debug flag and append
 	if [ x$2 == x"--debug" ]; then
-		debug_args=(-- -DEXTRA_CONF_FILE=../extra/debug.conf)
+		debug=true
 	fi
 else
 	# expect Zephyr-compatible target and args
@@ -178,11 +178,11 @@ if [ -f ${VARIANT_DIR}/sysbuild.conf ]; then
 	echo "sysbuild key configuration argument: ${key_args[@]}"
 
 	SB_CONF_FILE=$(realpath ${VARIANT_DIR}/sysbuild.conf) \
-		west build -d ${BUILD_DIR} -b ${target} --sysbuild loader "${args[@]}" -- "${key_args[@]}"
+		west build -d ${BUILD_DIR} -b ${target} --sysbuild loader "${args[@]}" "${key_args[@]}"
 	cmake --build ${IMAGE_DIR} --target llext-edk
 else
 	IMAGE_DIR=${BUILD_DIR}
-	west build -d ${BUILD_DIR} -b ${target} loader -t llext-edk "${args[@]}" "${debug_args[@]}"
+	west build -d ${BUILD_DIR} -b ${target} loader -t llext-edk "${args[@]}"
 fi
 
 # Extract the generated EDK tarball and copy it to the variant directory
