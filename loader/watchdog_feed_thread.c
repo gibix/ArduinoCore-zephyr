@@ -59,6 +59,16 @@ void watchdog_feed_thread(void *p1, void *p2, void *p3) {
 		wdt_feed(wdt_dev, wdt_channel_id);
 		k_msleep(MIN(feed_interval, 1000U));
 	}
+
+	/* Confirmed: the watchdog only had to guard the trial. Stop it where the
+	 * hardware allows (not an always-on watchdog), else keep feeding. */
+	int rc = wdt_disable(wdt_dev);
+
+	if (rc == 0 || rc == -EFAULT) {
+		LOG_INF("Image confirmed, watchdog %s", rc == 0 ? "disabled" : "not running");
+		return;
+	}
+	LOG_WRN("Watchdog cannot be disabled (%d), keep feeding it", rc);
 #endif
 
 	while (1) {
