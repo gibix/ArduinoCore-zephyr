@@ -6,9 +6,11 @@
 
 #ifdef CONFIG_USE_DFU_FLASH_UPDATES
 
+#include <string.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/storage/flash_map.h>
 #include <zephyr/drivers/flash.h>
@@ -20,6 +22,8 @@
 #include <zephyr/dfu/mcuboot.h>
 #include <zephyr/dfu/flash_img.h>
 #include <zephyr/logging/log.h>
+
+#include "slot1_trailer.h"
 LOG_MODULE_REGISTER(dfu_flash_updates);
 
 #ifdef CONFIG_USE_DFU_FADING_BLINK
@@ -43,6 +47,26 @@ struct sketch_flash_layout {
 extern struct sketch_flash_layout sketch_layout;
 #endif
 
+/*
+ * In swap-using-offset the image starts one sector into slot1. The .dfu file
+ * the IDE sends to every alternate starts with that many erased bytes, which
+ * are dropped (an image without them is taken as is).
+ */
+#define SLOT1_IMAGE_OFFSET  CONFIG_LOADER_DFU_SLOT1_IMAGE_OFFSET
+#define MCUBOOT_IMAGE_MAGIC 0x96f3b83dU
+
+#if CONFIG_LOADER_DFU_BOOT_MODE
+/* The request is a boot-mode value (boards without retention2). */
+bool check_dfu_mode_requested(void) {
+	if (bootmode_check(CONFIG_LOADER_DFU_BOOT_MODE) == 1) {
+		if (bootmode_clear() < 0) {
+			LOG_ERR("ERROR: Unable delete boot mode\n");
+		}
+		return true;
+	}
+	return false;
+}
+#else
 const struct device *retention2 = DEVICE_DT_GET(DT_NODELABEL(retention2));
 
 bool check_dfu_mode_requested(void) {
@@ -59,10 +83,12 @@ bool check_dfu_mode_requested(void) {
 	}
 	return false;
 }
+#endif
 
 struct usbd_dfu_flash_data {
 	struct flash_img_context fi_ctx;
 	uint32_t last_block;
+	uint32_t skip; /* Leading pad bytes still to drop */
 	const uint8_t id;
 
 	union {
@@ -120,6 +146,11 @@ static int dfu_flash_write(void *const priv, const uint32_t block, const uint16_
 		if (flash_img_init_id(&data->fi_ctx, data->id)) {
 			return -EINVAL;
 		}
+		/* flash_img clears only the trailer's first page. */
+		ret = slot1_erase_trailer(data->fi_ctx.flash_area);
+		if (ret) {
+			return ret;
+		}
 
 		data->last_block = 0;
 		data->downloaded = 0;
@@ -132,9 +163,19 @@ static int dfu_flash_write(void *const priv, const uint32_t block, const uint16_
 		return -EINVAL;
 	}
 
-	ret = flash_img_buffered_write(&data->fi_ctx, buf, size, flush);
-	if (ret) {
-		return ret;
+	if (block == 0) {
+		data->skip = (SLOT1_IMAGE_OFFSET == 0 || sys_get_le32(buf) == MCUBOOT_IMAGE_MAGIC)
+						 ? 0
+						 : SLOT1_IMAGE_OFFSET;
+	}
+	const uint16_t drop = MIN(size, data->skip);
+
+	data->skip -= drop;
+	if (size - drop > 0 || flush) {
+		ret = flash_img_buffered_write(&data->fi_ctx, &buf[drop], size - drop, flush);
+		if (ret) {
+			return ret;
+		}
 	}
 
 	data->last_block = block;
@@ -149,8 +190,12 @@ static bool slot1_next(void *priv, enum usb_dfu_state state, enum usb_dfu_state 
 
 	if (state == DFU_MANIFEST_SYNC && next == DFU_IDLE) {
 		LOG_INF("Loader update download finished, requesting MCUboot upgrade");
-		if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT)) {
-			boot_request_upgrade(false);
+		/* Nothing confirms a test image after a DFU update: in a swap mode
+		 * it would be reverted on the next reset. */
+		if (IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT) &&
+			boot_request_upgrade(BOOT_UPGRADE_PERMANENT) != 0) {
+			LOG_ERR("MCUboot upgrade request failed");
+			return false;
 		}
 	}
 
@@ -171,7 +216,6 @@ USBD_DFU_DEFINE_IMG(all_image, "complete_image", &slot1_data, dfu_flash_read, df
 #ifdef CONFIG_USE_LOADER_AND_BINARY_SQUASHED
 
 #define UPDATE_PARTITION_ID   PARTITION_ID(slot1_partition)
-#define UPDATE_PARTITION_SIZE DT_REG_SIZE(DT_NODELABEL(slot1_partition))
 
 /* Running state of the dynamic sketch DFU write; the flash layout it relies
  * on (sketch_offset, erase_size, block_num, custom_padding) comes from
@@ -182,6 +226,66 @@ struct sketch_dfu_state {
 
 static struct sketch_dfu_state dfu_state = {.current_offset = 0};
 
+/*
+ * The gap (the loader) is checked instead of skipped. After an OTA swap
+ * slot1 holds the previous image one sector lower, and after an image with a
+ * different loader slot1 holds that loader: a blind skip would leave a slot1
+ * image that MCUboot rejects. Each gap sector is compared with slot1 and
+ * rewritten only when it differs.
+ */
+#define GAP_SECTOR_MAX 4096
+#define GAP_CMP_CHUNK  256
+
+static struct {
+	uint8_t buf[GAP_SECTOR_MAX] __aligned(4);
+	uint32_t fill;
+	uint32_t rewritten;
+	uint32_t skipped;
+} gap;
+
+static int gap_flush(const struct flash_area *fa, uint32_t off, uint32_t sector) {
+	uint8_t tmp[GAP_CMP_CHUNK];
+	bool equal = true;
+	bool erased = true;
+	int err;
+
+	for (uint32_t i = 0; i < gap.fill && (equal || erased); i += GAP_CMP_CHUNK) {
+		uint32_t n = MIN(GAP_CMP_CHUNK, gap.fill - i);
+
+		err = flash_area_read(fa, off + i, tmp, n);
+		if (err) {
+			return err;
+		}
+		equal = equal && memcmp(tmp, &gap.buf[i], n) == 0;
+		for (uint32_t j = 0; erased && j < n; j++) {
+			erased = tmp[j] == 0xff;
+		}
+	}
+
+	if (equal) {
+		gap.skipped++;
+	} else {
+		if (gap.fill != sector) {
+			LOG_ERR("Gap end 0x%08x not sector aligned", off + gap.fill);
+			return -EINVAL;
+		}
+		if (!erased) {
+			err = flash_area_erase(fa, off, sector);
+			if (err) {
+				return err;
+			}
+		}
+		err = flash_area_write(fa, off, gap.buf, sector);
+		if (err) {
+			return err;
+		}
+		gap.rewritten++;
+	}
+
+	gap.fill = 0;
+	return 0;
+}
+
 static int dynamic_flash_write(void *const priv, const uint32_t block, const uint16_t size,
 							   const uint8_t buf[static CONFIG_USBD_DFU_TRANSFER_SIZE]) {
 	const struct flash_area *fa;
@@ -189,19 +293,18 @@ static int dynamic_flash_write(void *const priv, const uint32_t block, const uin
 	int err;
 
 	if (size == 0) {
+		LOG_INF("Loader region: %u sectors kept, %u rewritten", gap.skipped, gap.rewritten);
 		return 0;
 	}
 
-	/* In case there is no custom padding the sketch is automatically aligned
-	 * at the first flash block after the loader, so we start to delete the
-	 * sketch from there*/
-	uint32_t start_offset = sketch_layout.sketch_offset;
-	if (sketch_layout.custom_padding) {
-		start_offset =
-			(sketch_layout.sketch_offset / sketch_layout.erase_size) * sketch_layout.erase_size;
-		LOG_INF("Custom padding is applied, start update at offset %d (0x%08X)", start_offset,
-				start_offset);
+	/* The sketch alone can only be rewritten when it starts on its own erase
+	 * block; otherwise erasing its first block would wipe the loader's end. */
+	if (sketch_layout.erase_size == 0 ||
+		sketch_layout.sketch_offset % sketch_layout.erase_size != 0) {
+		LOG_ERR("Sketch shares an erase block with the loader, use complete_image");
+		return -ENOTSUP;
 	}
+	const uint32_t start_offset = SLOT1_IMAGE_OFFSET + sketch_layout.sketch_offset;
 
 	err = flash_area_open(UPDATE_PARTITION_ID, &fa);
 	if (err) {
@@ -222,16 +325,31 @@ static int dynamic_flash_write(void *const priv, const uint32_t block, const uin
 
 		uint32_t sketch_total_size = sketch_layout.erase_size * sketch_layout.block_num;
 
-		if ((sketch_layout.sketch_offset + sketch_total_size) > UPDATE_PARTITION_SIZE) {
+		if (start_offset + sketch_total_size > slot1_trailer_offset(fa)) {
 			LOG_ERR("Sketch offset exceeds partition size");
 			err = -ENOSPC;
 			goto end;
 		}
 
+		if (sketch_layout.erase_size > GAP_SECTOR_MAX) {
+			err = -ENOTSUP;
+			goto end;
+		}
+
 		data->current_offset = 0;
+		gap.fill = 0;
+		gap.rewritten = 0;
+		gap.skipped = 0;
+
+		/* Clear a stale trailer (e.g. left by an OTA swap). */
+		err = slot1_erase_trailer(fa);
+		if (err) {
+			LOG_ERR("Trailer erase failed (%d)", err);
+			goto end;
+		}
 
 		LOG_INF("Erase header (1) 0x%08x bytes at offset 0", sketch_layout.erase_size);
-		err = flash_area_erase(fa, 0, sketch_layout.erase_size);
+		err = flash_area_erase(fa, 0, SLOT1_IMAGE_OFFSET + sketch_layout.erase_size);
 		if (err) {
 			LOG_ERR("Flash area erase failed (%d)", err);
 			goto end;
@@ -254,31 +372,41 @@ static int dynamic_flash_write(void *const priv, const uint32_t block, const uin
 		uint32_t process_size;
 
 		/* Case 1: Header region */
-		if (data->current_offset < sketch_layout.erase_size) {
-			process_size = MIN(remaining_size, sketch_layout.erase_size - data->current_offset);
+		if (data->current_offset < SLOT1_IMAGE_OFFSET + sketch_layout.erase_size) {
+			process_size = MIN(remaining_size,
+							   SLOT1_IMAGE_OFFSET + sketch_layout.erase_size - data->current_offset);
 			write_offset = data->current_offset;
 		}
-		/* Case 2: Gap between header and sketch */
+		/* Case 2: Gap between header and sketch (checked, see gap_flush) */
 		else if (data->current_offset < start_offset) {
-			process_size = MIN(remaining_size, start_offset - data->current_offset);
-
-			/* Advance stream counters without writing */
+			process_size = MIN(remaining_size, MIN(start_offset - data->current_offset,
+												   sketch_layout.erase_size - gap.fill));
+			memcpy(&gap.buf[gap.fill], &buf[buf_offset], process_size);
+			gap.fill += process_size;
 			data->current_offset += process_size;
 			buf_offset += process_size;
 			remaining_size -= process_size;
+
+			if (gap.fill == sketch_layout.erase_size || data->current_offset == start_offset) {
+				err = gap_flush(fa, data->current_offset - gap.fill, sketch_layout.erase_size);
+				if (err) {
+					LOG_ERR("Loader region update failed (%d)", err);
+					goto end;
+				}
+			}
 			continue;
 		}
 		/* Case 3: Sketch region */
 		else {
 			write_offset = data->current_offset;
 
-			if (write_offset >= UPDATE_PARTITION_SIZE) {
+			if (write_offset >= slot1_trailer_offset(fa)) {
 				LOG_ERR("Write offset 0x%08x exceeds partition size", write_offset);
 				err = -ENOSPC;
 				goto end;
 			}
 
-			process_size = MIN(remaining_size, UPDATE_PARTITION_SIZE - write_offset);
+			process_size = MIN(remaining_size, slot1_trailer_offset(fa) - write_offset);
 
 			/* Erase dynamically as we cross into a new block */
 			if (write_offset > start_offset && (write_offset % sketch_layout.erase_size == 0)) {
@@ -322,14 +450,15 @@ USBD_DFU_DEFINE_IMG(sketch_image, "sketch", &dfu_state, NULL, dynamic_flash_writ
 /* +++ DFU USB CONFIGURATION and FUNCTIONS +++ */
 
 USBD_DEVICE_DEFINE(dfu_usbd, DEVICE_DT_GET(DT_NODELABEL(zephyr_udc0)), CONFIG_USB_DEVICE_VID,
-				   CONFIG_USB_DEVICE_PID + 0x0100);
+				   CONFIG_LOADER_DFU_PID ? CONFIG_LOADER_DFU_PID
+										 : CONFIG_USB_DEVICE_PID + 0x0100);
 
 USBD_DESC_LANG_DEFINE(sample_lang);
 USBD_DESC_CONFIG_DEFINE(fs_cfg_desc, "DFU FS Configuration");
 USBD_DESC_CONFIG_DEFINE(hs_cfg_desc, "DFU HS Configuration");
 
 USBD_DESC_MANUFACTURER_DEFINE(sample_mfr, "Arduino");
-USBD_DESC_PRODUCT_DEFINE(sample_product, "Arduino Mezza DFU");
+USBD_DESC_PRODUCT_DEFINE(sample_product, CONFIG_USB_DEVICE_PRODUCT " DFU");
 /* Derive the serial number from the STM32 unique ID via hwinfo, same as
  * MCUboot's DFU (usbd_dfu.c), so the serial stays identical no matter which
  * DFU mode (double-tap/MCUboot or 1200bps-touch/loader) the host sees. */
@@ -423,13 +552,13 @@ static void dfu_update(void) {
 	err = usbd_msg_register_cb(&dfu_usbd, dfu_msg_cb);
 	if (err) {
 		LOG_ERR("Failed to register message callback");
-		return;
+		goto shutdown;
 	}
 
 	err = usbd_enable(&dfu_usbd);
 	if (err) {
 		LOG_ERR("Failed to enable USB device support");
-		return;
+		goto shutdown;
 	}
 
 	LOG_INF("USB initialized. Waiting indefinitely for DFU update...");
@@ -449,6 +578,10 @@ static void dfu_update(void) {
 
 	LOG_INF("Rebooting to apply MCUboot upgrade...");
 	sys_reboot(SYS_REBOOT_COLD);
+
+shutdown:
+	/* Release the controller: loader() brings up its own USB device next. */
+	usbd_shutdown(&dfu_usbd);
 }
 
 void wait_for_dfu_update(void) {
