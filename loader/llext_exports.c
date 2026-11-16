@@ -16,6 +16,9 @@
 #include <time.h>
 #include <sys/time.h>
 #include <zephyr/drivers/pinctrl.h>
+#if defined(CONFIG_RETENTION)
+#include <zephyr/retention/retention.h>
+#endif
 #include <zephyr/device.h>
 #include <zephyr/posix/unistd.h>
 #if defined(CONFIG_MBEDTLS)
