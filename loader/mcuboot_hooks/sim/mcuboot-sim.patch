@@ -1,0 +1,158 @@
+diff --git a/sim/Cargo.toml b/sim/Cargo.toml
+index c76e6345..855af486 100644
+--- a/sim/Cargo.toml
++++ b/sim/Cargo.toml
+@@ -30,6 +30,7 @@ enc-aes256-ec256 = ["mcuboot-sys/enc-aes256-ec256"]
+ enc-x25519 = ["mcuboot-sys/enc-x25519"]
+ enc-aes256-x25519 = ["mcuboot-sys/enc-aes256-x25519"]
+ bootstrap = ["mcuboot-sys/bootstrap"]
++arduino-hooks = ["mcuboot-sys/arduino-hooks"]
+ multiimage = ["mcuboot-sys/multiimage"]
+ ram-load = ["mcuboot-sys/ram-load"]
+ direct-xip = ["mcuboot-sys/direct-xip"]
+diff --git a/sim/mcuboot-sys/Cargo.toml b/sim/mcuboot-sys/Cargo.toml
+index f7511d8f..5b4f552a 100644
+--- a/sim/mcuboot-sys/Cargo.toml
++++ b/sim/mcuboot-sys/Cargo.toml
+@@ -81,6 +81,10 @@ enc-aes256-x25519 = []
+ # Allow bootstrapping an empty/invalid primary slot from a valid secondary slot
+ bootstrap = []
+ 
++# Build the Arduino image access hooks (ARDUINO_MCUBOOT_HOOKS, default: the core
++# next to this west topdir) with MCUBOOT_IMAGE_ACCESS_HOOKS.
++arduino-hooks = []
++
+ # Support multiple images (currently 2 instead of 1).
+ multiimage = []
+ 
+diff --git a/sim/mcuboot-sys/build.rs b/sim/mcuboot-sys/build.rs
+index bf9eacd6..850f0af1 100644
+--- a/sim/mcuboot-sys/build.rs
++++ b/sim/mcuboot-sys/build.rs
+@@ -35,6 +35,7 @@ fn main() {
+     let enc_x25519 = env::var("CARGO_FEATURE_ENC_X25519").is_ok();
+     let enc_aes256_x25519 = env::var("CARGO_FEATURE_ENC_AES256_X25519").is_ok();
+     let bootstrap = env::var("CARGO_FEATURE_BOOTSTRAP").is_ok();
++    let arduino_hooks = env::var("CARGO_FEATURE_ARDUINO_HOOKS").is_ok();
+     let multiimage = env::var("CARGO_FEATURE_MULTIIMAGE").is_ok();
+     let downgrade_prevention = env::var("CARGO_FEATURE_DOWNGRADE_PREVENTION").is_ok();
+     let ram_load = env::var("CARGO_FEATURE_RAM_LOAD").is_ok();
+@@ -102,6 +103,33 @@ fn main() {
+         }
+     }
+ 
++    if arduino_hooks {
++        let hooks = env::var("ARDUINO_MCUBOOT_HOOKS").unwrap_or_else(|_|
++            "../../../../core/loader/mcuboot_hooks/boot_hooks.c".to_string());
++        println!("cargo:rerun-if-env-changed=ARDUINO_MCUBOOT_HOOKS");
++        println!("cargo:rerun-if-changed={}", hooks);
++        let hooks = fs::canonicalize(&hooks)
++            .unwrap_or_else(|e| panic!("ARDUINO_MCUBOOT_HOOKS {}: {}", hooks, e));
++        conf.conf.define("MCUBOOT_IMAGE_ACCESS_HOOKS", None);
++        conf.conf.define("ARDUINO_MCUBOOT_HOOKS_FILE",
++                         Some(format!("\"{}\"", hooks.display()).as_str()));
++        conf.file("csupport/arduino_hooks.c");
++
++        // The boot mode and double-tap hooks sit next to boot_hooks.c and are
++        // run by csupport/arduino_boot.c, in the Zephyr port's boot order.
++        let dir = hooks.parent().unwrap();
++        for (name, def) in [("dfu_boot_mode.c", "ARDUINO_MCUBOOT_DFU_BOOT_MODE_FILE"),
++                            ("double_tap.c", "ARDUINO_MCUBOOT_DOUBLE_TAP_FILE")] {
++            let file = dir.join(name);
++            println!("cargo:rerun-if-changed={}", file.display());
++            conf.conf.define(def, Some(format!("\"{}\"", file.display()).as_str()));
++        }
++        // boot_check_for_updates(), used by the boot mode hook.
++        conf.conf.define("MCUBOOT_USB_DFU", None);
++        conf.conf.include("csupport/arduino_zephyr");
++        conf.file("csupport/arduino_boot.c");
++    }
++
+     if check_load_addr {
+         conf.conf.define("MCUBOOT_CHECK_HEADER_LOAD_ADDRESS", None);
+     }
+diff --git a/sim/mcuboot-sys/src/c.rs b/sim/mcuboot-sys/src/c.rs
+index c4923856..b0486e21 100644
+--- a/sim/mcuboot-sys/src/c.rs
++++ b/sim/mcuboot-sys/src/c.rs
+@@ -127,6 +127,58 @@ pub fn boot_go(multiflash: &mut SimMultiFlash, areadesc: &AreaDesc,
+     }
+ }
+ 
++/// What survives a reset of the board, and what one boot with the Arduino
++/// hooks did.  Mirrors `struct arduino_boot_io` in csupport/arduino_zephyr.
++#[cfg(feature = "arduino-hooks")]
++#[repr(C)]
++#[derive(Debug, Default, Clone, Copy)]
++pub struct ArduinoBootIo {
++    /// Retention boot mode (1 = bootloader), kept across resets.
++    pub boot_mode: i32,
++    /// Double-tap cookie in retained RAM, kept across resets.
++    pub cookie: [u8; 4],
++    /// This reset came from the reset pin.
++    pub pin_reset: u8,
++    /// The reset button is pressed again while the double-tap window is open.
++    pub press_in_window: u8,
++    pub dfu_entered: u8,
++    pub rebooted: u8,
++    pub window_slept: u8,
++    pub reset_in_window: u8,
++    pub pad: [u8; 2],
++    /// boot_go() result, -1 when it did not run.
++    pub boot_rc: i32,
++}
++
++/// One boot in the Zephyr port's order with the Arduino hooks: double tap,
++/// boot_go_hook(), boot_go(), and the no-bootable-image action hook.
++/// Returns false when the board was reset before boot_go() returned.
++#[cfg(feature = "arduino-hooks")]
++pub fn arduino_boot(multiflash: &mut SimMultiFlash, areadesc: &AreaDesc,
++                    io: &mut ArduinoBootIo) -> bool {
++    init_crypto();
++
++    for (&dev_id, flash) in multiflash.iter_mut() {
++        api::set_flash(dev_id, flash);
++    }
++    let mut sim_ctx = api::CSimContext::default();
++    let mut rsp = api::BootRsp {
++        br_hdr: std::ptr::null(),
++        flash_dev_id: 0,
++        image_off: 0,
++    };
++    let result = unsafe {
++        let adesc = areadesc.get_c();
++        raw::invoke_arduino_boot(&mut sim_ctx as *mut _, adesc.borrow() as *const _,
++                                 &mut rsp as *mut _, io as *mut _)
++    };
++    for &dev_id in multiflash.keys() {
++        api::clear_flash(dev_id);
++    }
++    assert!(result == 0 || result == 1, "unexpected arduino boot result {}", result);
++    result == 0
++}
++
+ pub fn boot_load_image_from_flash_to_sram(multiflash: &mut SimMultiFlash, areadesc: &AreaDesc) -> bool {
+     init_crypto();
+ 
+@@ -222,6 +274,10 @@ mod raw {
+         pub fn invoke_boot_go(sim_ctx: *mut CSimContext, areadesc: *const CAreaDesc,
+             rsp: *mut BootRsp, image_index: libc::c_int) -> libc::c_int;
+ 
++        #[cfg(feature = "arduino-hooks")]
++        pub fn invoke_arduino_boot(sim_ctx: *mut CSimContext, areadesc: *const CAreaDesc,
++            rsp: *mut BootRsp, io: *mut super::ArduinoBootIo) -> libc::c_int;
++
+         pub fn invoke_boot_load_image_from_flash_to_sram(sim_ctx: *mut CSimContext,
+             areadesc: *const CAreaDesc) -> libc::c_int;
+ 
+diff --git a/sim/src/image.rs b/sim/src/image.rs
+index 881a67fb..36269982 100644
+--- a/sim/src/image.rs
++++ b/sim/src/image.rs
+@@ -3200,3 +3200,6 @@ fn test_alignments() -> &'static [usize] {
+ fn skip_slow_test() -> bool {
+     std::env::var_os("MCUBOOT_RUN_SLOW_TESTS").is_none()
+ }
++
++#[cfg(feature = "arduino-hooks")]
++include!("arduino.rs");
