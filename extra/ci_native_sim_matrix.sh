@@ -4,15 +4,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # This script computes the native_sim test jobs: one for the loader tests,
-# and one for each board native_sim poses as (see ci_native_sim_lists.sh),
-# that builds the test list of that board.
+# one for the MCUboot simulator tests (see ci_mcuboot_sim.sh), and one for
+# each board native_sim poses as (see ci_native_sim_lists.sh), that builds the
+# test list of that board.
 #
 # Usage: ci_native_sim_matrix.sh <list dir>
 #   print the test matrix as a compact JSON array of objects with:
-#    - group: 'loader', or the board native_sim poses as;
+#    - group: 'loader', 'mcuboot', or the board native_sim poses as;
 #    - id: the job marker id of the test job;
 #    - artifact, variant, arch: the core artifact, variant and architecture
-#      of the board (not for 'loader').
+#      of the board (not for 'loader' and 'mcuboot').
 #
 # <list dir> is the one written by ci_native_sim_lists.sh: the boards with
 # sketches there, available or not, get a test job, and so do the boards
@@ -35,7 +36,8 @@ BOARDS=$({
 } | jq -R -s -c 'split("\n") | map(select(length > 0)) | unique')
 
 extra/get_board_details.sh | jq -c --argjson boards "$BOARDS" '
-	[ { group: "loader", id: "test-native_sim-loader" } ] +
+	[ { group: "loader", id: "test-native_sim-loader" },
+	  { group: "mcuboot", id: "test-native_sim-mcuboot" } ] +
 	(map(select(.board as $b | $boards | index($b)))
 	 | sort_by(.board)
 	 | map({ group: .board, id: "test-native_sim-\(.board)",
