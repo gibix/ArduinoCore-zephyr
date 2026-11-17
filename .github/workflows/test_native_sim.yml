@@ -176,7 +176,9 @@ jobs:
   # Compile the test sketches of each board with the installed package, one
   # job per board native_sim poses as (see ci_native_sim_matrix.sh), and run
   # the ones that have expect logic on the host. See
-  # loader/native_sim/tests/run_sketches.sh.
+  # loader/native_sim/tests/run_sketches.sh. The 'mcuboot' job runs the
+  # MCUboot simulator with the core's MCUboot hooks instead, see
+  # extra/ci_mcuboot_sim.sh.
 
   test:
     name: Test ${{ matrix.group }}
@@ -204,6 +206,7 @@ jobs:
           persist-credentials: false
 
       - uses: ./.github/actions/setup-native-sim
+        if: ${{ matrix.group != 'mcuboot' }}
         with:
           core-dir: ${{ env.CORE_DIR }}
           ci-builds-url: ${{ inputs.ci-builds-url }}
@@ -211,19 +214,32 @@ jobs:
       # sketch build cache of this test job, from its latest run (see
       # setup-native-sim): most of the sketches and libraries do not change
       - uses: actions/cache@v5
+        if: ${{ matrix.group != 'mcuboot' }}
         with:
           path: ~/.cache/ccache
           key: native-sim-ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.group }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: native-sim-ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.group }}-
 
+      # MCUboot and its simulator build tree, for the MCUboot revision and
+      # the hook tests of this run
+      - uses: actions/cache@v5
+        if: ${{ matrix.group == 'mcuboot' }}
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            build/mcuboot-sim
+          key: mcuboot-sim-${{ runner.os }}-${{ hashFiles('west.yml', 'loader/mcuboot_hooks/sim/**') }}
+          restore-keys: mcuboot-sim-${{ runner.os }}-
+
       - uses: actions/download-artifact@v8
-        if: ${{ matrix.group != 'loader' }}
+        if: ${{ matrix.arch }}
         with:
           name: native_sim-test-list
           path: lists/
 
       - uses: actions/download-artifact@v8
-        if: ${{ matrix.group != 'loader' }}
+        if: ${{ matrix.arch }}
         continue-on-error: true # no test-data, no sketches: the test fails
         with:
           name: test-data
@@ -255,6 +271,8 @@ jobs:
           case "$GROUP" in
             loader)
               loader/native_sim/tests/run_tests.sh ;;
+            mcuboot)
+              extra/ci_mcuboot_sim.sh ;;
             *)
               if [ -f "lists/$GROUP/failed" ] ; then
                 cat "lists/$GROUP/failed"

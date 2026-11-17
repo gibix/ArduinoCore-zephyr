@@ -40,3 +40,9 @@ libraries/Arduino_RouterBridge/examples/.*
 libraries/Arduino_Video/examples/.*
 # ARM only: needs cmsis_core.h (UNO Q, Ventuno Q)
 libraries/Arduino_LED_Matrix/examples/.*
+
+# MCUboot simulator (extra/ci_mcuboot_sim.sh): a permanent update copy
+# interrupted between the primary magic and its image_ok/copy_done is left
+# unconfirmed (the loader confirms it, see loader/mcuboot_confirm.c). Fixed by
+# mcu-tools/mcuboot#2976: drop this line with the MCUboot bump that has it.
+mcuboot/[^/]+/arduino_perm_copy_with_fails$
