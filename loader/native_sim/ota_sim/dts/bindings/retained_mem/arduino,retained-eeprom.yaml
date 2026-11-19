@@ -1,0 +1,30 @@
+# Copyright (c) Arduino s.r.l. and/or its affiliated companies
+# SPDX-License-Identifier: Apache-2.0
+
+description: Retained memory area in a range of an EEPROM.
+
+compatible: "arduino,retained-eeprom"
+
+include: base.yaml
+
+properties:
+  "#address-cells":
+    const: 1
+
+  "#size-cells":
+    const: 1
+
+  eeprom:
+    type: phandle
+    required: true
+    description: EEPROM holding the area.
+
+  offset:
+    type: int
+    default: 0
+    description: Start of the area in the EEPROM.
+
+  size:
+    type: int
+    required: true
+    description: Size of the area.
