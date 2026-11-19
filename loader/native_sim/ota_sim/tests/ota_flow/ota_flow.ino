@@ -4,28 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Sketch of the MCUboot OTA simulator tests (ota_sim.py): runs the line
- * commands it reads on Serial and prints one result line for each.
+ * commands it reads on Serial and prints one "<command> <rc>" line for each.
  *
- *   update <size>  stream an image with ota_write(), <size> bytes in chunks
- *                  of at most CHUNK; "ack <n>" after each chunk, then
+ *   update <size>  the next <size> bytes are an image for ota_write();
  *                  "staged <rc>" once ota_loader_ready() returned
  *   start          ota_loader_start(): reboot into MCUboot
  *   confirm        ota_confirm()
  *   feed           ota_feed_watchdog()
  *   sleep <ms>     delay()
  *   exit <code>    exit()
- *
- * The Serial RX buffer drops what does not fit, so the sender waits for each
- * "ack" before sending the next chunk.
  */
 
 #include <ota.h>
 
-#define CHUNK 512
-
 static char line[64];
 static size_t line_len;
-static uint8_t chunk[CHUNK];
+static uint8_t chunk[512];
 
 static void reply(const char *what, long value) {
 	Serial.print(what);
@@ -33,11 +27,9 @@ static void reply(const char *what, long value) {
 	Serial.println(value);
 }
 
-/* Read exactly len bytes, waiting as long as needed: the sender paces. */
+/* Read exactly len bytes; Serial holds back the sender when it is full. */
 static void read_exact(uint8_t *buf, size_t len) {
-	size_t got = 0;
-
-	while (got < len) {
+	for (size_t got = 0; got < len;) {
 		int c = Serial.read();
 
 		if (c < 0) {
@@ -51,26 +43,19 @@ static void read_exact(uint8_t *buf, size_t len) {
 static void update(long size) {
 	int rc = ota_write_begin(OTA_LOADER, (size_t)size);
 
-	if (rc != 0) {
-		reply("staged", rc);
-		return;
-	}
-	reply("ack", 0);
-
+	/* On an error, keep reading the image: the next command follows it. */
 	for (long done = 0; done < size;) {
-		size_t n = min((long)CHUNK, size - done);
+		size_t n = min((long)sizeof(chunk), size - done);
 
 		read_exact(chunk, n);
-		rc = ota_write(chunk, n);
-		if (rc != 0) {
-			reply("staged", rc);
-			return;
+		if (rc == 0) {
+			rc = ota_write(chunk, n);
 		}
 		done += n;
-		reply("ack", done);
 	}
-
-	rc = ota_write_end();
+	if (rc == 0) {
+		rc = ota_write_end();
+	}
 	if (rc == 0) {
 		rc = ota_loader_ready();
 	}
@@ -106,7 +91,6 @@ static void run(char *cmd) {
 
 void setup() {
 	Serial.begin(115200);
-	Serial.println("ready");
 }
 
 void loop() {
@@ -114,18 +98,11 @@ void loop() {
 
 	if (c < 0) {
 		delay(1);
-		return;
+	} else if (c == '\n') {
+		line[line_len] = '\0';
+		line_len = 0;
+		run(line);
+	} else if (c != '\r' && line_len < sizeof(line) - 1) {
+		line[line_len++] = (char)c;
 	}
-	if (c == '\r') {
-		return;
-	}
-	if (c != '\n') {
-		if (line_len < sizeof(line) - 1) {
-			line[line_len++] = (char)c;
-		}
-		return;
-	}
-	line[line_len] = '\0';
-	line_len = 0;
-	run(line);
 }

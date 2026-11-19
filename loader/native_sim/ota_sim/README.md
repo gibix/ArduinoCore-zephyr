@@ -10,7 +10,7 @@ simulator), the loader, the OTA library and the trial window run too.
 flowchart LR
   R[ota_sim.py] -->|power-on| M[MCUboot<br/>native_sim]
   M -->|"SIM-BOOT: ver=..., exit 0"| R
-  R -->|start, stdin commands| L[loader native_sim_ota<br/>+ ota_flow sketch]
+  R -->|start, commands on stdin| L[loader native_sim_ota<br/>+ ota_flow sketch]
   L -->|"reboot: exit 100"| R
   F[(flash.bin<br/>eeprom.bin)] --- M
   F --- L
@@ -43,7 +43,8 @@ loader/native_sim/ota_sim/tests/run_tests.sh [-w <work dir>] [<scenario>...]
 ```
 
 `-w` keeps the flash, EEPROM and log of each scenario. The loader runs with
-`--no-rt`: the 60 s trial window takes milliseconds.
+`--no-rt`: the 60 s trial window takes milliseconds; the whole suite about
+100 s, mostly the power-cut sweeps.
 
 ## Scenarios (`tests/ota_sim.py`)
 
@@ -66,18 +67,23 @@ Each starts from v1 programmed over SWD (no trailer).
 | `power_cut_bootstrap` | power loss at every operation of a bootstrap (empty slot0): no reboot loop |
 
 Each power-cut scenario cuts every operation twice, clean and torn.
-`power_cut_bootstrap` fails: a torn write of the slot0 magic leaves
-`magic=bad`, which MCUboot boots and never reverts, but which the loader
-cannot confirm (`boot_write_img_confirmed()` writes nothing) and reboots
-after the trial window, every 60 s.
 
-The sketch (`tests/ota_flow`) runs line commands from stdin. The Serial RX
-buffer drops the bytes that do not fit, so images are sent in 512-byte chunks,
-each acknowledged by the sketch.
+`power_cut_bootstrap` is a known failure (`KNOWN_FAILURES`, reported as
+XFAIL): a torn write of the slot0 magic leaves `magic=bad`, which MCUboot
+boots and never reverts, but which the loader cannot confirm
+(`boot_write_img_confirmed()` writes nothing) and reboots after the trial
+window, every 60 s.
+
+The sketch (`tests/ota_flow`) runs line commands from stdin, all given when
+the loader starts; an image follows its `update <size>` command (Serial
+holds back the sender while its buffer is full).
 
 ## Not simulated
 
 USB (loader DFU, MCUboot DFU, double tap), the 1200-bps touch, and a hung
 sketch: a busy loop does not advance the simulated time, so the watchdog
-never bites. The loader runs under `setarch -R`: PR 771 maps the sketch at
-0x10000000, which the randomized host heap can cover (about 1 run in 100).
+never bites.
+
+`loader.conf` moves the sketch to 0x60000000: at the native_sim default
+(0x10000000) the randomized host heap covers it about 1 run in 100 on recent
+kernels.
