@@ -10,6 +10,14 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE} COMPONENTS yaml boards)
 set(DTC_OVERLAY_FILE ${CMAKE_CURRENT_LIST_DIR}/../variants/${NORMALIZED_BOARD_TARGET}/${NORMALIZED_BOARD_TARGET}.overlay)
 set(EXTRA_CONF_FILE ${CMAKE_CURRENT_LIST_DIR}/../variants/${NORMALIZED_BOARD_TARGET}/${NORMALIZED_BOARD_TARGET}.conf)
 
+# MCUboot OTA simulator (native_sim_ota in boards.txt, native_sim/ota_sim/)
+if(ARDUINO_OTA_SIM)
+    set(ota_sim_dir ${CMAKE_CURRENT_LIST_DIR}/native_sim/ota_sim)
+    list(APPEND EXTRA_CONF_FILE ${ota_sim_dir}/loader.conf)
+    list(APPEND EXTRA_DTC_OVERLAY_FILE ${ota_sim_dir}/ota_sim.overlay)
+    list(APPEND EXTRA_ZEPHYR_MODULES ${ota_sim_dir})
+endif()
+
 # Add dts/bindings to DTS_ROOT for custom bindings
 list(APPEND DTS_ROOT ${CMAKE_CURRENT_LIST_DIR}/..)
 
