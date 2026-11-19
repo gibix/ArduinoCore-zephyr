@@ -803,3 +803,24 @@ native_sim.upload.tool=
 native_sim.compiler.zephyr.extra_cxxflags=-I{build.variant.path}/libstdc++/include -I{build.variant.path}/libstdc++/target
 native_sim.compiler.zephyr.common_ldflags=-fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-unwind-tables -fno-use-cxa-atexit -nostdlib -no-pie -static -Wl,--no-warn-rwx-segments -Wl,-u,__cxa_allocate_exception -Wl,--build-id=none
 native_sim.compiler.zephyr.extra_ldflags=-lstdc++ -lsupc++ -lc -lgcc
+
+# MCUboot OTA simulator: the native_sim loader booted by MCUboot on simulated
+# flash (loader/native_sim/ota_sim/README.md)
+native_sim_ota.name=Native Simulator, MCUboot OTA (64-bit)
+native_sim_ota.build.core=arduino
+native_sim_ota.build.crossprefix=
+native_sim_ota.build.compiler_path=
+native_sim_ota.build.zephyr_target=native_sim/native/64
+native_sim_ota.build.zephyr_args=-o native_runner_executable -- -DARDUINO_OTA_SIM=y
+native_sim_ota.build.zephyr_hals=picolibc
+native_sim_ota.build.variant=native_sim_ota_native_64
+native_sim_ota.build.artifact=native_sim
+native_sim_ota.build.board=NATIVE_SIM
+native_sim_ota.build.extra_flags=
+native_sim_ota.build.link_mode=static
+native_sim_ota.build.check_command-static={build.check_command-dynamic}
+native_sim_ota.upload.extension=bin-zsk.bin
+native_sim_ota.upload.tool=
+native_sim_ota.compiler.zephyr.extra_cxxflags=-I{build.variant.path}/libstdc++/include -I{build.variant.path}/libstdc++/target
+native_sim_ota.compiler.zephyr.common_ldflags=-fno-exceptions -fno-rtti -fno-threadsafe-statics -fno-unwind-tables -fno-use-cxa-atexit -nostdlib -no-pie -static -Wl,--no-warn-rwx-segments -Wl,-u,__cxa_allocate_exception -Wl,--build-id=none
+native_sim_ota.compiler.zephyr.extra_ldflags=-lstdc++ -lsupc++ -lc -lgcc

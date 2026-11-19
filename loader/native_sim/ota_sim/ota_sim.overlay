@@ -57,3 +57,16 @@
 		};
 	};
 };
+
+/* The loader's watchdog0 (watchdog_feed_thread.c) */
+/ {
+	aliases {
+		watchdog0 = &wdt_counter;
+	};
+
+	wdt_counter: wdt-counter {
+		compatible = "zephyr,counter-watchdog";
+		counter = <&counter0>;
+		status = "okay";
+	};
+};
