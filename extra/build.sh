@@ -117,7 +117,10 @@ echo "Build version: $build_version"
 echo "Build target: $target ${args[*]}"
 
 # Get the variant name (NORMALIZED_BOARD_TARGET in Zephyr)
-variant=$(extra/get_variant_name.sh $target)
+# A board of boards.txt names its variant (native_sim_ota shares its target
+# with native_sim); for a bare Zephyr target, the normalized target.
+variant=$(jq -r '.variant // empty' <<< "${chosen_board:-null}")
+[ -n "${variant}" ] || variant=$(extra/get_variant_name.sh $target)
 
 if [ -z "${variant}" ] ; then
 	echo "Failed to get variant name from '$target'"
@@ -436,7 +439,7 @@ if [ ! -z "$board" ]; then
 		# native_sim can pose as any other board, to build its sketches on
 		# the host with the same board define: add a 'mimic' menu option
 		# for each, with its name and its build.board
-		for mimic in $(grep -oP '^\w+(?=\.build\.board=)' boards.txt | grep -vx native_sim) ; do
+		for mimic in $(grep -oP '^\w+(?=\.build\.board=)' boards.txt | grep -v '^native_sim') ; do
 			update_local_field "menu.mimic.${mimic}" "$(sed -n -e "s/^${mimic}\.name=//p" boards.txt)"
 			update_local_field "menu.mimic.${mimic}.build.board" "$(sed -n -e "s/^${mimic}\.build\.board=//p" boards.txt)"
 		done
