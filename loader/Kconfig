@@ -67,7 +67,8 @@ config LOADER_TRIAL_WINDOW_MS
 	default 0
 	help
 	  With MCUboot swap modes an update first runs as a test. The sketch
-	  must call ota_confirm() within this time, or the watchdog thread
+	  must call ota_confirm() within this time (counted from boot, or
+	  from its last ota_feed_watchdog() call), or the watchdog thread
 	  reboots and MCUboot swaps the previous image back. A hang that
 	  stops the thread is caught by the watchdog itself. Once the image
 	  is confirmed the thread disables the watchdog, unless the hardware

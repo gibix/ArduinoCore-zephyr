@@ -75,7 +75,8 @@ MCUboot swaps an update in as a test (swap-using-offset):
 - A valid image runs once as a test and must call `ota_confirm()` within
   `CONFIG_LOADER_TRIAL_WINDOW_MS` (60 s). If it does not, or the board resets
   before that (a crash, or the watchdog after a lockup), MCUboot swaps the
-  previous image back.
+  previous image back. A sketch that needs longer to check itself can call
+  `ota_feed_watchdog()`, which restarts the window from the time of the call.
 - A USB upload (double-tap reset, or `arduino-cli upload`) overwrites the
   running image for good, without a swap; one that is broken or interrupted
   leaves the running sketch in place.

@@ -21,6 +21,9 @@
 #include <ota.h>
 
 #include "../slot1_trailer.h"
+#if defined(CONFIG_LOADER_TRIAL_WINDOW_MS) && (CONFIG_LOADER_TRIAL_WINDOW_MS > 0)
+#include "../trial_window.h"
+#endif
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(ota_mcuboot, CONFIG_OTA_LOG_LEVEL);
@@ -180,6 +183,15 @@ int ota_loader_ready(void) {
 
 int ota_loader_start(void) {
 	return ota_start();
+}
+
+int ota_feed_watchdog(void) {
+#if defined(CONFIG_LOADER_TRIAL_WINDOW_MS) && (CONFIG_LOADER_TRIAL_WINDOW_MS > 0)
+	if (!boot_is_img_confirmed()) {
+		loader_trial_window_restart();
+	}
+#endif
+	return 0;
 }
 
 int ota_confirm(void) {

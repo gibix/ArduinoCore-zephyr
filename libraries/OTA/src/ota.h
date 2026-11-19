@@ -66,6 +66,16 @@ int ota_loader_ready(void);
 int ota_loader_start(void);
 
 /*
+ * Restart the trial window of a test image: the automatic reboot and revert
+ * happen CONFIG_LOADER_TRIAL_WINDOW_MS after this call instead of after boot.
+ * Call it while the sketch is still checking itself (e.g. waiting for the
+ * network) and needs more time before ota_confirm(). It does not keep a hung
+ * sketch alive: the hardware watchdog is fed by the loader, not by this call.
+ * Does nothing once the image is confirmed or where updates are not tested.
+ */
+int ota_feed_watchdog(void);
+
+/*
  * Keep the running image. On boards whose MCUboot swaps updates in as a test,
  * an image that does not call this within CONFIG_LOADER_TRIAL_WINDOW_MS is
  * swapped back. Call it once the sketch works, e.g. after reaching its server

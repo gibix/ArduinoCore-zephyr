@@ -7,6 +7,7 @@
 #if defined(CONFIG_LOADER_TRIAL_WINDOW_MS) && (CONFIG_LOADER_TRIAL_WINDOW_MS > 0)
 #include <zephyr/dfu/mcuboot.h>
 #include <zephyr/sys/reboot.h>
+#include "trial_window.h"
 #endif
 LOG_MODULE_REGISTER(watchdog_feeding);
 
@@ -14,6 +15,27 @@ LOG_MODULE_REGISTER(watchdog_feeding);
 
 const struct device *const wdt_dev = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 static int wdt_channel_id;
+
+#if defined(CONFIG_LOADER_TRIAL_WINDOW_MS) && (CONFIG_LOADER_TRIAL_WINDOW_MS > 0)
+/* Uptime at which an unconfirmed test image is rebooted (and reverted). */
+static struct k_spinlock trial_lock;
+static int64_t trial_deadline = CONFIG_LOADER_TRIAL_WINDOW_MS;
+
+void loader_trial_window_restart(void) {
+	K_SPINLOCK(&trial_lock) {
+		trial_deadline = k_uptime_get() + CONFIG_LOADER_TRIAL_WINDOW_MS;
+	}
+}
+
+static bool trial_expired(void) {
+	bool expired = false;
+
+	K_SPINLOCK(&trial_lock) {
+		expired = k_uptime_get() >= trial_deadline;
+	}
+	return expired;
+}
+#endif
 
 void watchdog_feed_thread(void *p1, void *p2, void *p3) {
 	ARG_UNUSED(p1);
@@ -48,11 +70,10 @@ void watchdog_feed_thread(void *p1, void *p2, void *p3) {
 
 #if defined(CONFIG_LOADER_TRIAL_WINDOW_MS) && (CONFIG_LOADER_TRIAL_WINDOW_MS > 0)
 	/* A test image (MCUboot swap modes) must call ota_confirm() in time, or
-	 * MCUboot swaps the previous image back on the reboot. */
-	const int64_t deadline = k_uptime_get() + CONFIG_LOADER_TRIAL_WINDOW_MS;
-
+	 * MCUboot swaps the previous image back on the reboot. The window runs
+	 * from boot; ota_feed_watchdog() restarts it. */
 	while (!boot_is_img_confirmed()) {
-		if (k_uptime_get() >= deadline) {
+		if (trial_expired()) {
 			LOG_WRN("Test image not confirmed, reverting");
 			sys_reboot(SYS_REBOOT_WARM);
 		}

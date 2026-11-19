@@ -61,6 +61,11 @@ int ota_write(const void *buf, size_t len) {
 	return 0;
 }
 
+int ota_feed_watchdog(void) {
+	/* No trial window without MCUboot swap modes. */
+	return 0;
+}
+
 int ota_confirm(void) {
 	/* File updates are installed for good, there is nothing to confirm. */
 	return 0;
