@@ -1,0 +1,59 @@
+/*
+ * Copyright (c) Arduino s.r.l. and/or its affiliated companies
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Flash and retained memory of the MCUboot OTA simulator, shared by MCUboot
+ * and the loader. Swap-using-offset: slot1 is one sector larger than slot0,
+ * no scratch. 8-byte writes like the Nano XL Link trailer (copy_done at -32,
+ * image_ok at -24, magic in the last 16 bytes).
+ */
+
+/delete-node/ &scratch_partition;
+
+&flash0 {
+	write-block-size = <8>;
+};
+
+&slot1_partition {
+	reg = <0x00075000 0x0006a000>;
+};
+
+/ {
+	chosen {
+		zephyr,boot-mode = &boot_mode;
+		zephyr,bootloader-info = &boot_info;
+	};
+
+	/* Same offsets as the Nano XL Link retained_mem.dtsi. */
+	retained_ram_blinfo: retained-eeprom-0 {
+		compatible = "arduino,retained-eeprom";
+		eeprom = <&eeprom0>;
+		offset = <0x0>;
+		size = <0x80>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_info: retention@0 {
+			compatible = "zephyr,retention";
+			reg = <0x0 0x80>;
+			prefix = [08 04];
+			checksum = <1>;
+		};
+	};
+
+	retained_ram: retained-eeprom-1 {
+		compatible = "arduino,retained-eeprom";
+		eeprom = <&eeprom0>;
+		offset = <0x80>;
+		size = <0x20>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_mode: retention@10 {
+			compatible = "zephyr,retention";
+			reg = <0x10 0x5>;
+			prefix = [4d 96 5a 6b];
+		};
+	};
+};

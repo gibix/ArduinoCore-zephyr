@@ -1,0 +1,22 @@
+# Copyright (c) Arduino s.r.l. and/or its affiliated companies
+# SPDX-License-Identifier: Apache-2.0
+
+config ARDUINO_RETAINED_EEPROM
+	bool "Retained memory on an EEPROM (native_sim)"
+	default y
+	depends on DT_HAS_ARDUINO_RETAINED_EEPROM_ENABLED
+	depends on RETAINED_MEM
+	select EEPROM
+	help
+	  Retained memory kept in a range of an EEPROM. On native_sim the
+	  simulated EEPROM is a host file (--eeprom), so the boot mode and
+	  the bootloader info survive the "reboot" from MCUboot to the
+	  loader, which are two processes.
+
+config ARDUINO_RETAINED_EEPROM_INIT_PRIORITY
+	int "Init priority of the EEPROM retained memory"
+	default 60
+	depends on ARDUINO_RETAINED_EEPROM
+	help
+	  After the EEPROM (EEPROM_INIT_PRIORITY), before the retention
+	  areas (RETENTION_INIT_PRIORITY).

@@ -1,0 +1,6 @@
+name: arduino_ota_sim
+build:
+  cmake: .
+  kconfig: Kconfig
+  settings:
+    dts_root: .
