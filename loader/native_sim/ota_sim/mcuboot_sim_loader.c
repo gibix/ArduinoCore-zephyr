@@ -18,13 +18,15 @@
 #include <zephyr/sys/printk.h>
 #include <posix_board_if.h>
 
+unsigned int sim_flash_ops(void);
+
 #define SIM_EXIT_REBOOT 100
 #define SIM_EXIT_NO_WDT 101
 
 void __wrap_sys_arch_reboot(int type)
 {
 	/* Parsed by run_ota.sh: keep the format. */
-	printk("SIM-REBOOT: type=%d\n", type);
+	printk("SIM-REBOOT: type=%d ops=%u\n", type, sim_flash_ops());
 	posix_exit(SIM_EXIT_REBOOT);
 }
 
